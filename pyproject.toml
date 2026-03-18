@@ -17,6 +17,7 @@ dependencies = [
 	"uvicorn>=0.40.0",
 	"streamlit>=1.55.0",
 	"langchain-huggingface>=1.2.1",
+	"lancedb>=0.30.0",
 ]
 
 [project.optional-dependencies]
