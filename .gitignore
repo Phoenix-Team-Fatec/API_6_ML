@@ -2,3 +2,5 @@
 .env
 data
 notebook.ipynb
+vector_db
+__pycache__
