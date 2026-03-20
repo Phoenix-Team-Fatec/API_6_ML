@@ -48,35 +48,15 @@ def _is_valid_chunk(text: str, min_length: int = 40) -> bool:
 
     return True
 
-
-def load_csv(file_path: str) -> list[dict]:
-    df = pd.read_csv(file_path)
-    df.fillna("", inplace=True)  
-    source = Path(file_path).stem
-    
-    result = []
-    for i, (_, row) in enumerate(df.iterrows()):
-        text = " | ".join(f"{col}: {val}" for col, val in row.items())
-        if _is_valid_chunk(text, min_length=50):  # min_length aumentado de 40 para 50
-            result.append({
-                "text": _sanitize_text(text),
-                "source": source,
-                "row_index": i
-            })
-    
-    # Limitar a 500 documentos para evitar overload no Ollama
-    # if len(result) > 500:
-    #     print(f"⚠️  Limiting CSV documents from {len(result)} to 500 (sampling every {len(result)//500}th row)")
-    #     result = result[::len(result)//500][:500]
-    
-    return result
-    
-    
+        
 def load_pdf(file_path:str, chunksize: int = 500, chunk_overlap: int = 50) -> list[dict]:
     source = Path(file_path).stem
     
-    loader = PyMuPDFLoader(file_path)
-    documents = loader.load()
+    try:
+        loader = PyMuPDFLoader(file_path)
+        documents = loader.load()
+    except FileNotFoundError:
+        raise FileNotFoundError(f"Arquivo PDF não encontrado: {file_path}")
     
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=chunksize,
@@ -95,5 +75,11 @@ def load_pdf(file_path:str, chunksize: int = 500, chunk_overlap: int = 50) -> li
             })
         
     return chunks
+
+
+def load_csv(file_path:str) -> list[dict]:
+    df = pd.read_csv(file_path)
+    df.fillna("", inplace=True)
+    return df
     
     
