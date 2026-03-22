@@ -12,8 +12,8 @@ class Retriever:
     def get_context(self, query: str) -> str:
         results = (
             self.store
-                .get_store("pdf_rules")
-                .similarity_search(query, k=settings.retrievr_top_k)
+                .get_store(settings.rules_table_name)
+                .similarity_search(query, k=settings.retriever_top_k)
         )
         
         if not results: 
@@ -23,7 +23,8 @@ class Retriever:
         lines = ['Context retrieved from PDF:']
         for doc in results:
             page = doc.metadata.get("page", "unknown")
-            lines.append(f"Page {page}: {doc.page_content}")
+            source = doc.metadata.get("source", "unknown")
+            lines.append(f"Source={source} Page={page}: {doc.page_content}")
             
         return "\n".join(lines)
         

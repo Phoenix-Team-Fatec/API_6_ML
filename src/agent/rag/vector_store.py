@@ -35,26 +35,26 @@ class VectorStore:
             table_name=table_name
         )
               
-    def ingest_pdf(self, chunks: list[dict], overwrite:bool =False) -> None:
+    def ingest_documents(self, chunks: list[dict], table_name: str, overwrite:bool =False) -> None:
         if not chunks:
             raise ValueError("No valid chunks to ingest.")
         
-        if overwrite and 'pdf_rules' in self.db.table_names(): 
-            self.db.drop_table('pdf_rules')
-            logger.info("Existing 'pdf_rules' table dropped for overwrite.")
+        if overwrite and table_name in self.db.table_names(): 
+            self.db.drop_table(table_name)
+            logger.info(f"Existing {table_name} table dropped for overwrite.")
             
         documents = self._to_documents(chunks)
         
-        if "pdf_rules" in self.db.table_names():
-            store = self.get_store("pdf_rules")
+        if table_name in self.db.table_names():
+            store = self.get_store(table_name)
             store.add_documents(documents)
-            logger.info(f"Added {len(documents)} documents to existing 'pdf_rules' table.")
+            logger.info(f"Added {len(documents)} documents to existing {table_name} table.")
         else:
             LanceDB.from_documents(
                 documents=documents,
                 connection=self.db,
                 embedding=self.embeddings,
-                table_name="pdf_rules"
+                table_name=table_name
             )
-            logger.info(f"Created 'pdf_rules' table and ingested {len(documents)} documents.")
+            logger.info(f"Created {table_name} table and ingested {len(documents)} documents.")
     
