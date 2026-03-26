@@ -1,9 +1,7 @@
-def build_edit_prompt(
-    user_request: str,
-    rules_context: str,
-    code_context: str,
-) -> str:
-    return f"""You are a senior software maintenance assistant.
+from langchain_core.prompts import ChatPromptTemplate
+
+def build_edit_prompt() -> ChatPromptTemplate:
+    system_prompt = """You are a senior software maintenance assistant.
 
 Goal:
 Update the codebase to reflect the requested business rule change.
@@ -26,5 +24,11 @@ Business rules context:
 Code context:
 {code_context}
 
-User request:
-{user_request}""".strip()
+User Query:
+{user_request}
+"""
+    prompt = ChatPromptTemplate.from_template(system_prompt)
+    
+    return prompt
+    
+   
