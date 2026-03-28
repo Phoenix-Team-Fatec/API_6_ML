@@ -27,8 +27,7 @@ Code context:
 User Query:
 {user_request}
 """
-    prompt = ChatPromptTemplate.from_template(system_prompt)
-    
-    return prompt
+
+    return ChatPromptTemplate.from_template(system_prompt)
     
    

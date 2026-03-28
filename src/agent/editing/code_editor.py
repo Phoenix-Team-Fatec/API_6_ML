@@ -37,11 +37,16 @@ class CodeEditor:
         rules_context: str,
         code_context: str,
     ) -> CodeEditProposal:
-        prompt = build_edit_prompt(
-            user_request=user_request,
-            rules_context=rules_context,
-            code_context=code_context,
-        )
+        prompt_template = build_edit_prompt()
 
-        structured_llm = self.ollama_llm.with_structured_output(CodeEditProposal)
-        return structured_llm.invoke(prompt)
+        llm = self.ollama_model()
+        
+        structured_llm = llm.with_structured_output(CodeEditProposal)
+
+        chain = prompt_template | structured_llm
+
+        return chain.invoke({
+        "user_request": user_request,
+        "rules_context": rules_context,
+        "code_context": code_context
+    })
