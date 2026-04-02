@@ -4,7 +4,8 @@ from src.agent.editing.validators import validate_python_code, validate_target_f
 from src.agent.rag.code_retriever import CodeRetriever
 from src.agent.rag.retriever import Retriever
 from src.agent.rag.vector_store import VectorStore
-
+from src.agent.editing.chains import Chains
+import json
 
 class ChangeRequestService:
     def __init__(self):
@@ -12,6 +13,8 @@ class ChangeRequestService:
         self.rules_retriever = Retriever(self.store)
         self.code_retriever = CodeRetriever(self.store)
         self.editor = CodeEditor()
+        self.chain = Chains()
+
 
     def process_change_request(self, user_request: str, dry_run: bool = True) -> dict:
         rules_context = self.rules_retriever.get_context(user_request)
@@ -38,3 +41,12 @@ class ChangeRequestService:
             "diff": diff,
             "dry_run": dry_run,
         }
+        
+    def generate_code(self, query: str):
+        chain = self.chain.edit_chain()
+        
+        response = chain.invoke({'input': query})
+        
+        response_json = json.loads(response)
+        
+        return response_json

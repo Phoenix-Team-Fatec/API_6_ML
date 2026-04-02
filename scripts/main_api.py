@@ -83,3 +83,12 @@ def ingest_rules(payload: IngestRulesPayload):
        overwrite=payload.overwrite,
    )
     return {"message": f"Regras ingeridas com sucesso a partir de {payload.pdf}"}
+
+
+@app.post("/generate-code", tags=["Agente"], summary="Gerar código a partir de descrição")
+def generate_code(query: str):
+    try:
+        response_json = service.generate_code(query)
+        return response_json
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))

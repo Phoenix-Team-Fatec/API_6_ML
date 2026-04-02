@@ -12,6 +12,8 @@ class Settings(BaseSettings):
     hugging_face_model: str = 'Qwen/Qwen3-Coder-30B-A3B-Instruct:featherless-ai'
     huggingfacehub_api_token: str = os.getenv("HUGGINGFACEHUB_API_TOKEN") 
     
+    google_api_key: str = os.getenv("GOOGLE_API_KEY")
+    
     # Ollama
     embed_model: str = "nomic-embed-text:latest"
     embed_dim: int = 768
