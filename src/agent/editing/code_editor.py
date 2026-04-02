@@ -1,5 +1,6 @@
 from langchain_ollama import ChatOllama
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+from langchain.chat_models import init_chat_model, BaseChatModel
 from src.agent.config.settings import settings
 from src.agent.editing.schemas import CodeEditProposal
 from src.agent.editing.prompt_builder import build_edit_prompt
@@ -29,6 +30,14 @@ class CodeEditor:
         return ChatOllama(
             model=self.ollama_llm,
             temperature=self.temperature,
+        )
+
+    def google_genai_model(self) -> BaseChatModel:
+        return init_chat_model(
+            model=settings.google_model,
+            provider="google_genai",
+            temperature=self.temperature,
+            api_key=settings.google_api_key
         )
 
     def propose_edit(

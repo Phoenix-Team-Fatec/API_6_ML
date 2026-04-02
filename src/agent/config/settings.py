@@ -6,13 +6,19 @@ load_dotenv()
 
 class Settings(BaseSettings):
     
-    # LLM
-    llm_model: str = "qwen3-coder:latest"
-    llm_temperature: float = 0.0
+    # LLMs
     hugging_face_model: str = 'Qwen/Qwen3-Coder-30B-A3B-Instruct:featherless-ai'
     huggingfacehub_api_token: str = os.getenv("HUGGINGFACEHUB_API_TOKEN") 
     
+    google_model: str = "gemini-1.5-pro"
+    google_api_key: str = os.getenv("GOOGLE_API_KEY")
+    
+    llm_temperature: float = 0.1
+
+
+    
     # Ollama
+    llm_model: str = "qwen3-coder:latest"
     embed_model: str = "nomic-embed-text:latest"
     embed_dim: int = 768
     
