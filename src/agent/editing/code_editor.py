@@ -33,12 +33,10 @@ class CodeEditor:
         )
 
     def google_genai_model(self) -> BaseChatModel:
-        return init_chat_model(
-            model=settings.google_model,
-            provider="google_genai",
-            temperature=self.temperature,
-            api_key=settings.google_api_key
-        )
+        return init_chat_model(f"google_genai:{settings.google_model}")
+    
+    def groq_model(self) -> BaseChatModel:
+        return init_chat_model(f"groq:{settings.groq_model}")
 
     def propose_edit(
         self,

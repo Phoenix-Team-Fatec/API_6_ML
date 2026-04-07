@@ -10,8 +10,11 @@ class Settings(BaseSettings):
     hugging_face_model: str = 'Qwen/Qwen3-Coder-30B-A3B-Instruct:featherless-ai'
     huggingfacehub_api_token: str = os.getenv("HUGGINGFACEHUB_API_TOKEN") 
     
-    google_model: str = "gemini-1.5-pro"
+    google_model: str = "gemini-2.5-flash"
     google_api_key: str = os.getenv("GOOGLE_API_KEY")
+    
+    groq_model: str = "openai/gpt-oss-120b"
+    groq_api_key: str = os.getenv("GROQ_API_KEY")
     
     llm_temperature: float = 0.1
 

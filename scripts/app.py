@@ -21,8 +21,8 @@ def parse_and_display(raw:str) -> str:
 
 
 if __name__ == "__main__":
-    st.set_page_config(page_title="Teste da Aplicação", page_icon="🤖")
-    st.title("Testando o agente 🤖")
+    st.set_page_config(page_title="Rule AI", page_icon="🤖")
+    st.title("Executando Rule AI 🤖")
 
     # Chain mantida no session_state — evita recriar a cada rerun
     if "agent" not in st.session_state:
