@@ -18,6 +18,13 @@ class State(TypedDict):
     
     # Controle de iterações
     iteration: int
+
+    # Guardrail de resposta do agente
+    agent_blocked: bool
+    agent_errors: list[str]
+
+    # Tentativas de revisao do JSON
+    review_attempts: int
     
     # Erros encontrados pelo review_node
     review_errors: list[str]

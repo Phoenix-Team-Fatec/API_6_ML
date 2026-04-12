@@ -33,6 +33,8 @@ a matrículas individuais. Exemplos:
 - Datas: formato "YYYY-MM-DD"
 - perc_override recebe o percentual ABSOLUTO (ex: 1.75, não 0.0175)
 - O campo "justificativa" deve citar qual regra do contexto motivou a escolha
+- Para intercorrencia, "tipo" deve ser um de: bonus_fixo, bonus_venda, admissao_bonus
+- Preencha somente um dos campos: override OU intercorrencias
 
 ## Schema esperado
 

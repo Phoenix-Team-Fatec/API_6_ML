@@ -56,9 +56,13 @@ def format_json(data) -> None:
 
         for msg in messages:
             tipo = type(msg).__name__
-            conteudo = (msg.content or "")[:300]  # limita para não poluir
-            if len(msg.content or "") > 1000:
-                conteudo += "..."
+            content = msg.content if hasattr(msg, "content") else msg
+            if isinstance(content, (dict, list)):
+                conteudo = json.dumps(content, ensure_ascii=False, default=str)
+            else:
+                conteudo = str(content or "")
+            if len(conteudo) > 1000:
+                conteudo = conteudo[:300] + "..."
             table.add_row(tipo, conteudo)
 
         console.print(table)
@@ -76,12 +80,32 @@ def main():
 
     result = graph.invoke({
         "messages": [HumanMessage(content=(
-            "Somente para este mês, o % de comissionamento da marca 20 "
-            "será aplicada em todos os cargos da marca 10"
+            "Os funcionários abaixo receberam um bônus ﬁxo de R$20.000 por" 
+            "tempo de casa a ser acrescido na sua respectiva base de calculo de"
+            "vendas para efeito de comissionamento:"
+            'i. MATRIC-227'
+            'ii. MATRIC-139'
+            'iii. MATRIC-400'
+            'iv. MATRIC-122'
+            'v. MATRIC-387'
+            'vi. MATRIC-78'
+            'vii. MATRIC-10'
+            'viii. MATRIC-356'
+            'ix. MATRIC-405'
         ))],
         "user_request": (
-            "Somente para este mês, o % de comissionamento da marca 20 "
-            "será aplicada em todos os cargos da marca 10"
+            "Os funcionários abaixo receberam um bônus ﬁxo de R$20.000 por" 
+            "tempo de casa a ser acrescido na sua respectiva base de calculo de"
+            "vendas para efeito de comissionamento:"
+            'i. MATRIC-227'
+            'ii. MATRIC-139'
+            'iii. MATRIC-400'
+            'iv. MATRIC-122'
+            'v. MATRIC-387'
+            'vi. MATRIC-78'
+            'vii. MATRIC-10'
+            'viii. MATRIC-356'
+            'ix. MATRIC-405'
         ),
         "rules_context": "",
         "code_context": "",

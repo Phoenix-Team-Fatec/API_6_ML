@@ -37,10 +37,25 @@ def build_agent_node(provider: str = 'groq'):
             messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
             
         response = llm_with_tools.invoke(messages)
-        
+        has_tool_calls = hasattr(response, 'tool_calls') and response.tool_calls
+        content = (response.content or "") if hasattr(response, "content") else ""
+        is_ready = content.strip() == "PRONTO_PARA_EDITAR"
+
+        if not has_tool_calls and not is_ready:
+            return {
+                "messages": [response],
+                "iteration": state.get('iteration', 0) + 1,
+                "agent_blocked": True,
+                "agent_errors": [
+                    "Agente nao retornou PRONTO_PARA_EDITAR nem chamou tools."
+                ],
+            }
+
         return {
             "messages": [response],
             "iteration": state.get('iteration', 0) + 1,
+            "agent_blocked": False,
+            "agent_errors": [],
         }
     
     return agent_node
@@ -86,18 +101,27 @@ def build_review_node():
         raw = state.get("raw_output", "")
         errors: list[str] = []
         validated: RespostaAgente | None = None
+        review_attempts = state.get("review_attempts", 0)
         
         # Verificar se ha conteudo
         if not raw.strip():
             errors.append("O modelo retornou uma resposta vazia")
-            return {"review_errors": errors, "validated_output": None}
+            return {
+                "review_errors": errors,
+                "validated_output": None,
+                "review_attempts": review_attempts + 1,
+            }
         
         # Parse do JSON
         try:
             data = json.loads(_limpar_json(raw))
         except json.JSONDecodeError as e:
             errors.append(f"JSON inválido: {str(e)}")
-            return {"review_errors": errors, "validated_output": None}
+            return {
+                "review_errors": errors,
+                "validated_output": None,
+                "review_attempts": review_attempts + 1,
+            }
         
         # Validacao do schema PyDantic
         try:
@@ -106,16 +130,25 @@ def build_review_node():
             for err in e.errors():
                 campo = " → ".join(str(c) for c in err["loc"])
                 errors.append(f"Campo '{campo}': {err['msg']}")
-            return {"review_errors": errors, "validated_output": None}
+            return {
+                "review_errors": errors,
+                "validated_output": None,
+                "review_attempts": review_attempts + 1,
+            }
 
         # Validacao de negocio adicionais 
         errors.extend(_validar_regras_negocio(validated))
         
         if errors:
-            return {"review_errors": errors, "validated_output": None}
+            return {
+                "review_errors": errors,
+                "validated_output": None,
+                "review_attempts": review_attempts + 1,
+            }
         return {
             "review_errors": [],
             "validated_output": validated,
+            "review_attempts": review_attempts,
         }
         
     return review_node
@@ -139,12 +172,21 @@ def _extrair_contexto_das_mensagens(messages: list) -> dict:
 def _limpar_json(raw: str) -> str:
     """Remove blocos markdown caso o modelo os inclua mesmo instruído a não."""
     raw = raw.strip()
+    if "Codigo gerado:" in raw:
+        raw = raw.split("Codigo gerado:", 1)[1].strip()
+    if "Código gerado:" in raw:
+        raw = raw.split("Código gerado:", 1)[1].strip()
     if raw.startswith("```"):
         linhas = raw.splitlines()
         raw = "\n".join(
             l for l in linhas
             if not l.strip().startswith("```")
         ).strip()
+    # Mantem somente o bloco JSON entre o primeiro '{' e o ultimo '}'
+    start = raw.find("{")
+    end = raw.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        raw = raw[start:end + 1]
     return raw
 
 
