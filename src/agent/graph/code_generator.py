@@ -1,11 +1,9 @@
 from langchain_ollama import ChatOllama
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+from langchain.chat_models import init_chat_model, BaseChatModel
 from src.agent.config.settings import settings
-from src.agent.editing.schemas import CodeEditProposal
-from src.agent.editing.prompt_builder import build_edit_prompt
 
-
-class CodeEditor:
+class CodeGeneratorModels:
     def __init__(self):
         self.ollama_llm = settings.llm_model
         self.huggingface_llm = settings.hugging_face_model
@@ -31,22 +29,9 @@ class CodeEditor:
             temperature=self.temperature,
         )
 
-    def propose_edit(
-        self,
-        user_request: str,
-        rules_context: str,
-        code_context: str,
-    ) -> CodeEditProposal:
-        prompt_template = build_edit_prompt()
+    def google_genai_model(self) -> BaseChatModel:
+        return init_chat_model(f"google_genai:{settings.google_model}")
+    
+    def groq_model(self) -> BaseChatModel:
+        return init_chat_model(f"groq:{settings.groq_model}")
 
-        llm = self.ollama_model()
-        
-        structured_llm = llm.with_structured_output(CodeEditProposal)
-
-        chain = prompt_template | structured_llm
-
-        return chain.invoke({
-        "user_request": user_request,
-        "rules_context": rules_context,
-        "code_context": code_context
-    })
