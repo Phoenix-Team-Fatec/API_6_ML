@@ -4,8 +4,8 @@ from langgraph.prebuilt import ToolNode
 from pydantic import ValidationError
 
 from src.agent.graph.state import State
-from src.agent.editing.code_editor import CodeEditor
-from src.agent.editing.prompt_builder import build_edit_prompt
+from src.agent.graph.code_generator import CodeGeneratorModels 
+from src.agent.prompts.prompt_builder import build_edit_prompt
 from src.agent.tools.rag_code_tool import buscar_regras_negocio
 from src.agent.tools.rag_rules_tool import buscar_trecho_codigo
 from src.agent.prompts.system_promt import SYSTEM_PROMPT
@@ -22,7 +22,7 @@ def build_agent_node(provider: str = 'groq'):
     O agente decide ciclicamente quais tools chamar antes de
     passar ao code_editor.
     """
-    editor = CodeEditor()
+    editor = CodeGeneratorModels()
     if provider == 'groq':
         llm = editor.groq_model()
     else:
@@ -66,7 +66,7 @@ def build_code_editor_node() -> State:
     Nó especializado que recebe todo o contexto acumulado
     e gera o código Python final com a alteração.
     """
-    editor = CodeEditor()
+    editor = CodeGeneratorModels()
     llm = editor.hf_model()
     prompt = build_edit_prompt()
     chain = prompt | llm
@@ -98,6 +98,7 @@ def build_review_node():
     Popula review_errors no estado em caso de falha para retry ou escalação.
     """
     def review_node(state: State) -> State:
+        print('> review node')
         raw = state.get("raw_output", "")
         errors: list[str] = []
         validated: RespostaAgente | None = None
