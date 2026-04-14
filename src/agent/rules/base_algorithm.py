@@ -325,6 +325,9 @@ def calcular_comissionamento(
             elif ic.tipo == "bonus_fixo":
                 bonus += ic.valor
 
+            elif ic.tipo == "perc_bonus":
+                perc += ic.valor
+
             elif ic.tipo == "admissao_bonus":
                 # Bônus para admitidos até determinado dia
                 if admitido_no_mes and func.data_admissao.day <= ic.data_inicio.day:
@@ -459,18 +462,19 @@ def carregar_intercorrencias_do_mes(
 
 if __name__ == "__main__":
         output_ia = {
-        "tipo": "intercorrencia",
-        "override": None,
-        "intercorrencias": [
-            {
-                "matricula": "MATRIC-227",
-                "tipo": "bonus_fixo",
-                "valor": 20000,
-                "vigencia_inicio": "2024-12-01",
-                "vigencia_fim": "2024-12-19"
-            }
-        ]
+  "tipo": "intercorrencia",
+  "override": None,
+  "intercorrencias": [
+    {
+      "matricula": "MATRIC-227",
+      "tipo": "perc_bonus",
+      "valor": 0.1,
+      "vigencia_inicio": "2024-01-01",
+      "vigencia_fim": "2024-12-31"
     }
+  ],
+  "justificativa": "A solicitação pede aumento de 10% na comissão do funcionário MATRIC-227, o que se enquadra no tipo perc_bonus conforme regra de intercorrência para ajuste percentual individual."
+}
         
         funcionarios = [
         Funcionario(

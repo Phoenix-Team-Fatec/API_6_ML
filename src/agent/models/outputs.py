@@ -95,7 +95,7 @@ class IntercorrenciaSazonal(BaseModel):
     """Bônus ou ajuste sazonal vinculado a matrículas individuais."""
 
     matricula: str = Field(description="Matrícula do funcionário")
-    tipo: Literal["bonus_fixo", "bonus_venda", "admissao_bonus"] = Field(
+    tipo: Literal["bonus_fixo", "bonus_venda", "admissao_bonus", "perc_bonus"] = Field(
         description="Tipo da intercorrência conforme calcular_comissionamento()"
     )
     valor: float = Field(description="Valor em reais ou percentual conforme o tipo")

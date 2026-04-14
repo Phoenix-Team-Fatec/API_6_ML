@@ -1,4 +1,5 @@
 import json
+import traceback
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException
@@ -120,4 +121,5 @@ def ask(user_input: str):
             })
         return validated.model_dump()
     except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=404, detail=str(e))

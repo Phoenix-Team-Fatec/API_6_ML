@@ -24,9 +24,9 @@ def build_agent_node(provider: str = 'groq'):
     """
     editor = CodeGeneratorModels()
     if provider == 'groq':
-        llm = editor.groq_model()
+        llm = editor.ollama_model()
     else:
-        llm = editor.google_genai_model()
+        llm = editor.ollama_model()
     llm_with_tools = llm.bind_tools(TOOLS)
     
     def agent_node(state: State) -> State:
@@ -69,7 +69,7 @@ def build_code_editor_node() -> State:
     e gera o código Python final com a alteração.
     """
     editor = CodeGeneratorModels()
-    llm = editor.hf_model()
+    llm = editor.ollama_model()
     prompt = build_edit_prompt()
     chain = prompt | llm
     
