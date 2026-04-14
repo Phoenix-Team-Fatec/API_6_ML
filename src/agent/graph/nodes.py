@@ -42,13 +42,15 @@ def build_agent_node(provider: str = 'groq'):
         is_ready = content.strip() == "PRONTO_PARA_EDITAR"
 
         if not has_tool_calls and not is_ready:
+            correction = SystemMessage(content=(
+                "Você deve chamar uma tool para buscar contexto "
+                "OU responder exatamente 'PRONTO_PARA_EDITAR'. "
+                "Nenhuma outra resposta é aceita."
+            ))
             return {
-                "messages": [response],
-                "iteration": state.get('iteration', 0) + 1,
-                "agent_blocked": True,
-                "agent_errors": [
-                    "Agente nao retornou PRONTO_PARA_EDITAR nem chamou tools."
-                ],
+                "messages": [response, correction],
+                "iteration": state.get("iteration", 0) + 1,
+                "agent_blocked": False,
             }
 
         return {

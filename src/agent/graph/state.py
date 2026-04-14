@@ -1,6 +1,7 @@
 from typing import Annotated, Optional, TypedDict, Sequence
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
+from src.agent.models.outputs import RespostaAgente
 
 class State(TypedDict):
     messages: Annotated[Sequence[BaseMessage], add_messages]
@@ -29,6 +30,8 @@ class State(TypedDict):
     # Erros encontrados pelo review_node
     review_errors: list[str]
     
+    #Output final em JSON
+    validated_output: Optional[RespostaAgente]
     
     
 

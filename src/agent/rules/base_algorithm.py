@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
 
+from src.agent.models.outputs import IntercorrenciaSazonal, OverridesMensais
 
 # ---------------------------------------------------------------------------
 # Constantes
@@ -399,3 +400,122 @@ def _faixa(valor: float, faixas: list[tuple[float, float, float]]) -> float:
         if minimo <= valor <= maximo:
             return bonus
     return 0.0
+
+def carregar_overrides_do_mes(
+    regras_mongo: list[dict],
+    ano: int,
+    mes: int,
+) -> dict:
+    """
+    Recebe lista de documentos do MongoDB,
+    filtra os vigentes no mês e combina em um único dict de overrides.
+    """
+    overrides_combinados: dict = {
+        "perc_override": {},
+        "marca_override": {},
+        "perc_adicional": {},
+    }
+
+    for doc in regras_mongo:
+        if doc.get("tipo") != "override":
+            continue
+
+        regra = OverridesMensais(**doc["override"])
+
+        if not regra.esta_vigente(ano, mes):
+            continue
+
+        parsed = regra.to_dict()
+        overrides_combinados["perc_override"].update(parsed["perc_override"])
+        overrides_combinados["marca_override"].update(parsed["marca_override"])
+        overrides_combinados["perc_adicional"].update(parsed["perc_adicional"])
+
+    return overrides_combinados
+
+def carregar_intercorrencias_do_mes(
+    regras_mongo: list[dict],
+    ano: int,
+    mes: int,
+) -> list:
+    """
+    Filtra intercorrências vigentes e converte para objetos Intercorrencia.
+    """
+
+    resultado = []
+    for doc in regras_mongo:
+        if doc.get("tipo") != "intercorrencia":
+            continue
+        for ic in doc.get("intercorrencias", []):
+            sazonal = IntercorrenciaSazonal(**ic)
+            if sazonal.esta_vigente(ano, mes):
+                resultado.append(Intercorrencia(
+                    matricula=sazonal.matricula,
+                    tipo=sazonal.tipo,
+                    data_inicio=sazonal.vigencia_inicio,
+                    data_fim=sazonal.vigencia_fim,
+                    valor=sazonal.valor,
+                ))
+    return resultado
+
+if __name__ == "__main__":
+        output_ia = {
+        "tipo": "intercorrencia",
+        "override": None,
+        "intercorrencias": [
+            {
+                "matricula": "MATRIC-227",
+                "tipo": "bonus_fixo",
+                "valor": 20000,
+                "vigencia_inicio": "2024-12-01",
+                "vigencia_fim": "2024-12-19"
+            }
+        ]
+    }
+        
+        funcionarios = [
+        Funcionario(
+            matricula="MATRIC-227",
+            cod_marca=10,
+            descr_marca="Marca 10",
+            cod_loja="LOJA-1",
+            descr_loja="Loja 1",
+            data_admissao=date(2020, 1, 1),
+            data_demissao=None,
+            cod_cargo=300,
+            descr_cargo="Vendedor Loja",
+        )
+    ]
+        
+        vendas = [
+        Venda(matricula="MATRIC-227", cod_marca=10, cod_loja="LOJA-1", vlr_venda=25_361.90)
+    ]
+
+        tabela_comissao = [
+            ComissionamentoBase(cod_marca=10, cod_cargo=300, perc_comissao=0.025)  # 2.5%
+        ]
+
+    # --- Converter intercorrências do output da IA ---
+        intercorrencias = carregar_intercorrencias_do_mes(
+            regras_mongo=[output_ia],
+            ano=2024,
+            mes=12,
+        )
+
+        resultados = calcular_comissionamento(
+        funcionarios=funcionarios,
+        vendas=vendas,
+        tabela_comissao=tabela_comissao,
+        intercorrencias=intercorrencias,
+        ano=2024,
+        mes=12,
+    )
+        
+        for r in resultados:
+            print(f"""
+Matrícula:       {r.matricula}
+Base de vendas:  R$ {r.base_vendas:,.2f}
+% Comissão:      {r.perc_comissao * 100:.2f}%
+Comissão bruta:  R$ {r.valor_comissao_bruto:,.2f}
+Bônus:           R$ {r.bonus:,.2f}
+VALOR FINAL:     R$ {r.valor_final:,.2f}
+        """)

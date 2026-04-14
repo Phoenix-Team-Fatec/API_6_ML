@@ -13,7 +13,7 @@ def build_graph():
     graph = StateGraph(State)
     
     # Nós 
-    graph.add_node('agent_node', build_agent_node(provider='google_genai'))
+    graph.add_node('agent_node', build_agent_node(provider='groq'))
     graph.add_node('code_editor_node', build_code_editor_node())
     graph.add_node('review_node', build_review_node())
     graph.add_node('tools', tools_node)
@@ -50,3 +50,6 @@ def build_graph():
     
     return graph.compile()
     
+if __name__ == "__main__":
+    app = build_graph()
+    print(app.get_graph().draw_mermaid())

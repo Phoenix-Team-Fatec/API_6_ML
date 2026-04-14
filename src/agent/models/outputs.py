@@ -1,4 +1,5 @@
 from __future__ import annotations
+import calendar
 from datetime import date
 from typing import Literal, Optional, Union
 from pydantic import BaseModel, Field, model_validator
@@ -111,9 +112,9 @@ class IntercorrenciaSazonal(BaseModel):
         return self
 
     def esta_vigente(self, ano: int, mes: int) -> bool:
-        data_competencia = date(ano, mes, 1)
-        return self.vigencia_inicio <= data_competencia <= self.vigencia_fim
-
+        primeiro_dia_mes = date(ano, mes, 1)
+        ultimo_dia_mes = date(ano, mes, calendar.monthrange(ano, mes)[1])
+        return self.vigencia_inicio <= ultimo_dia_mes and self.vigencia_fim >= primeiro_dia_mes
 
 class RespostaAgente(BaseModel):
     """

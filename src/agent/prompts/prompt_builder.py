@@ -27,8 +27,7 @@ a matrículas individuais. Exemplos:
 ## Regras de formato obrigatórias
 
 - Responda SOMENTE com JSON puro, sem markdown, sem explicações fora do JSON.
-- Chaves de perc_override e perc_adicional: string "cod_marca,cod_cargo" \
-  ex: "10,300"
+- perc_adicional: valor decimal ex: 0.005 para +0.5%
 - Chaves de marca_override: string do cod_marca de origem, ex: "10"
 - Datas: formato "YYYY-MM-DD"
 - perc_override recebe o percentual ABSOLUTO (ex: 1.75, não 0.0175)
@@ -47,8 +46,8 @@ Para override:
     "data_inicio": "YYYY-MM-DD",
     "data_fim": "YYYY-MM-DD",
     "perc_override": {{"cod_marca,cod_cargo": percentual}},
-    "marca_override": {{}},
-    "perc_adicional": {{}}
+    "marca_override": {{"cod_marca_origem": cod_marca_referencia}},
+    "perc_adicional": {{"cod_marca,cod_cargo": valor_decimal}},
   }},
   "intercorrencias": null
 }}
@@ -68,10 +67,9 @@ Para intercorrência:
     }}
   ]
 }}
-
-## Solicitação do usuário
-{user_request}
 """
-    return ChatPromptTemplate.from_template(system_prompt)
-    
-   
+    return ChatPromptTemplate.from_messages([
+        ("system", system_prompt),
+        ("human", "{user_request}"),
+    ])
+        

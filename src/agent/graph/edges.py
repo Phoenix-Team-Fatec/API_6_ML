@@ -1,7 +1,7 @@
 from langchain_core.messages import AIMessage
 from src.agent.graph.state import State
 
-MAX_ITERATIONS = 10
+MAX_ITERATIONS = 6
 
 def route_agent(state: State) -> str:
     """
