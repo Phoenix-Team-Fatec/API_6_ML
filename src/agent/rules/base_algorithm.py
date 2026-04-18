@@ -491,7 +491,7 @@ if __name__ == "__main__":
     ]
         
         vendas = [
-        Venda(matricula="MATRIC-227", cod_marca=10, cod_loja="LOJA-1", vlr_venda=25_361.90)
+        Venda(matricula="MATRIC-227", cod_marca=10, cod_loja="LOJA-1", vlr_venda=25361.90)
     ]
 
         tabela_comissao = [
