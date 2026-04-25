@@ -20,10 +20,18 @@ from src.agent.models.outputs import IntercorrenciaSazonal, OverridesMensais
 COD_CARGO_GERENTE = 150
 VALOR_FIXO_AFASTAMENTO = 3_500.0
 
+DEBUG_COMISSIONAMENTO = False
+
+
+def print_debug(mensagem: str = "") -> None:
+    if DEBUG_COMISSIONAMENTO:
+        print(mensagem)
+
 
 # ---------------------------------------------------------------------------
 # Estruturas de dados
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class Funcionario:
@@ -56,6 +64,7 @@ class ComissionamentoBase:
 @dataclass
 class Intercorrencia:
     """Representa qualquer evento especial que afeta o comissionamento."""
+
     matricula: str
     tipo: str  # 'afastamento', 'ferias', 'bonus_fixo', 'bonus_venda', 'admissao_bonus'
     data_inicio: Optional[date] = None
@@ -80,6 +89,7 @@ class ResultadoComissionamento:
 # Helpers de data
 # ---------------------------------------------------------------------------
 
+
 def dias_no_mes(ano: int, mes: int) -> int:
     return calendar.monthrange(ano, mes)[1]
 
@@ -102,6 +112,7 @@ def fator_proporcional(dias_efetivos: int, total_dias: int) -> float:
 # ---------------------------------------------------------------------------
 # Regras de afastamento
 # ---------------------------------------------------------------------------
+
 
 def calcular_ajuste_afastamento(
     vlr_base: float,
@@ -135,6 +146,7 @@ def calcular_ajuste_afastamento(
 # Regras de férias
 # ---------------------------------------------------------------------------
 
+
 def calcular_fator_ferias(
     data_inicio_ferias: date,
     data_fim_ferias: date,
@@ -164,6 +176,7 @@ def calcular_fator_ferias(
 # Licença maternidade
 # ---------------------------------------------------------------------------
 
+
 def calcular_fator_licenca_maternidade(
     data_inicio_licenca: date,
     ano: int,
@@ -189,6 +202,7 @@ def calcular_fator_licenca_maternidade(
 # Engine principal
 # ---------------------------------------------------------------------------
 
+
 def calcular_comissionamento(
     funcionarios: list[Funcionario],
     vendas: list[Venda],
@@ -213,8 +227,7 @@ def calcular_comissionamento(
 
     # --- Indexar tabela de comissão ---
     indice_comissao: dict[tuple[int, int], float] = {
-        (c.cod_marca, c.cod_cargo): c.perc_comissao
-        for c in tabela_comissao
+        (c.cod_marca, c.cod_cargo): c.perc_comissao for c in tabela_comissao
     }
 
     # Aplicar overrides de % de comissão para o mês
@@ -226,8 +239,15 @@ def calcular_comissionamento(
     vendas_por_loja: dict[str, float] = {}
 
     for v in vendas:
-        vendas_por_matricula[v.matricula] = vendas_por_matricula.get(v.matricula, 0.0) + v.vlr_venda
+        vendas_por_matricula[v.matricula] = (
+            vendas_por_matricula.get(v.matricula, 0.0) + v.vlr_venda
+        )
         vendas_por_loja[v.cod_loja] = vendas_por_loja.get(v.cod_loja, 0.0) + v.vlr_venda
+
+    print_debug("")
+    print_debug("========== VENDAS CONSOLIDADAS ==========")
+    print_debug(f"Vendas por matrícula: {vendas_por_matricula}")
+    print_debug(f"Vendas por loja: {vendas_por_loja}")
 
     # --- Indexar intercorrências por matrícula ---
     intercorr_por_matricula: dict[str, list[Intercorrencia]] = {}
@@ -237,6 +257,14 @@ def calcular_comissionamento(
     resultados: list[ResultadoComissionamento] = []
 
     for func in funcionarios:
+        print_debug("")
+        print_debug("==========================================")
+        print_debug(f"INICIANDO CÁLCULO DA MATRÍCULA: {func.matricula}")
+        print_debug(f"Funcionário: cargo={func.cod_cargo} - {func.descr_cargo}")
+        print_debug(f"Loja: {func.cod_loja} - {func.descr_loja}")
+        print_debug(f"Marca: {func.cod_marca} - {func.descr_marca}")
+        print_debug(f"Admissão: {func.data_admissao}")
+        print_debug(f"Demissão: {func.data_demissao}")
         # Verificar se funcionário estava ativo no mês
         admitido_no_mes = (
             func.data_admissao.year == ano and func.data_admissao.month == mes
@@ -249,10 +277,12 @@ def calcular_comissionamento(
 
         # Ignorar funcionários demitidos antes do mês de competência
         if func.data_demissao is not None and func.data_demissao < data_competencia:
+            print_debug("Funcionário ignorado: demitido antes do mês de competência.")
             continue
 
         # Ignorar admitidos após o mês de competência
         if func.data_admissao > date(ano, mes, total_dias):
+            print_debug("Funcionário ignorado: admitido após o mês de competência.")
             continue
 
         eh_gerente = func.cod_cargo == COD_CARGO_GERENTE
@@ -260,8 +290,16 @@ def calcular_comissionamento(
         # --- Base de vendas ---
         if eh_gerente:
             base_vendas = vendas_por_loja.get(func.cod_loja, 0.0)
+            print_debug("Funcionário é gerente.")
+            print_debug(
+                f"Base de vendas usada: total da loja {func.cod_loja} = R$ {base_vendas:,.2f}"
+            )
         else:
             base_vendas = vendas_por_matricula.get(func.matricula, 0.0)
+            print_debug("Funcionário não é gerente.")
+            print_debug(
+                f"Base de vendas usada: vendas da matrícula {func.matricula} = R$ {base_vendas:,.2f}"
+            )
 
         # Bônus sobre base de vendas (ex: bônus por tempo de casa adicionado à base)
         bonus_base_venda = sum(
@@ -269,15 +307,31 @@ def calcular_comissionamento(
             for ic in intercorr_por_matricula.get(func.matricula, [])
             if ic.tipo == "bonus_venda"
         )
+
+        if bonus_base_venda:
+            print_debug(
+                f"Bônus adicionado à base de vendas: R$ {bonus_base_venda:,.2f}"
+            )
+
+        print_debug(f"Base final para cálculo da comissão: R$ {base_vendas:,.2f}")
+
         base_vendas += bonus_base_venda
 
         # --- % de comissão ---
         # Override de marca: ex "aplicar % da marca 20 em todos cargos da marca 10"
-        cod_marca_efetivo = overrides.get("marca_override", {}).get(func.cod_marca, func.cod_marca)
+        cod_marca_efetivo = overrides.get("marca_override", {}).get(
+            func.cod_marca, func.cod_marca
+        )
         perc = indice_comissao.get((cod_marca_efetivo, func.cod_cargo), 0.0)
 
+        print_debug(f"Marca efetiva para busca de comissão: {cod_marca_efetivo}")
+        print_debug(f"Percentual base encontrado: {perc * 100:.2f}%")
+
         # Acréscimo de % por regra do mês (ex: +0,5% para marca 30)
-        perc += overrides.get("perc_adicional", {}).get((func.cod_marca, func.cod_cargo), 0.0)
+        perc += overrides.get("perc_adicional", {}).get(
+            (func.cod_marca, func.cod_cargo), 0.0
+        )
+        print_debug(f"Percentual final após adicionais: {perc * 100:.2f}%")
 
         # --- Fator proporcional base ---
         fator = 1.0
@@ -286,22 +340,46 @@ def calcular_comissionamento(
         # Proporcional de admissão
         if admitido_no_mes:
             dias_ef = dias_trabalhados_admissao(func.data_admissao, ano, mes)
+            fator_admissao = fator_proporcional(dias_ef, total_dias)
             fator = min(fator, fator_proporcional(dias_ef, total_dias))
+
+            print_debug("Aplicando proporcional de admissão.")
+            print_debug(f"Dias trabalhados desde admissão: {dias_ef} de {total_dias}")
+            print_debug(f"Fator de admissão: {fator_admissao:.4f}")
 
         # Proporcional de demissão
         if demitido_no_mes:
             dias_ef = dias_trabalhados_demissao(func.data_demissao, ano, mes)
+            fator_demissao = fator_proporcional(dias_ef, total_dias)
             fator = min(fator, fator_proporcional(dias_ef, total_dias))
+
+            print_debug("Aplicando proporcional de demissão.")
+            print_debug(f"Dias trabalhados até demissão: {dias_ef} de {total_dias}")
+            print_debug(f"Fator de demissão: {fator_demissao:.4f}")
 
         # Intercorrências do mês
         for ic in intercorr_por_matricula.get(func.matricula, []):
+            print_debug("")
+            print_debug(f"Intercorrência encontrada: {ic.tipo}")
+            print_debug(
+                f"Início: {ic.data_inicio} | Fim: {ic.data_fim} | Valor: R$ {ic.valor:,.2f}"
+            )
+
             if ic.tipo == "ferias" and ic.data_inicio and ic.data_fim:
                 fator_f = calcular_fator_ferias(ic.data_inicio, ic.data_fim, ano, mes)
                 fator = min(fator, fator_f)
 
+                print_debug("Aplicando regra de férias.")
+                print_debug(f"Fator de férias: {fator_f:.4f}")
+                print_debug(f"Fator proporcional acumulado: {fator:.4f}")
+
             elif ic.tipo == "licenca_maternidade" and ic.data_inicio:
                 fator_l = calcular_fator_licenca_maternidade(ic.data_inicio, ano, mes)
                 fator = min(fator, fator_l)
+
+                print_debug("Aplicando regra de licença maternidade.")
+                print_debug(f"Fator de licença maternidade: {fator_l:.4f}")
+                print_debug(f"Fator proporcional acumulado: {fator:.4f}")
 
             elif ic.tipo == "afastamento" and ic.data_inicio and ic.data_fim:
                 # Calcular dias de afastamento no mês
@@ -322,16 +400,34 @@ def calcular_comissionamento(
                     # O valor de afastamento já é o adicional — não reduz o fator geral
                     bonus += ajuste
 
+                    print_debug("Aplicando regra de afastamento.")
+                    print_debug(f"Dias de afastamento no mês: {dias_afastamento}")
+                    print_debug(f"Dias trabalhados no mês: {dias_trabalhados_no_mes}")
+                    print_debug(f"Ajuste de afastamento calculado: R$ {ajuste:,.2f}")
+                    print_debug(f"Bônus acumulado: R$ {bonus:,.2f}")
+
             elif ic.tipo == "bonus_fixo":
                 bonus += ic.valor
 
+                print_debug("Aplicando bônus fixo.")
+                print_debug(f"Valor do bônus fixo: R$ {ic.valor:,.2f}")
+                print_debug(f"Bônus acumulado: R$ {bonus:,.2f}")
+
             elif ic.tipo == "perc_bonus":
                 perc += ic.valor
+
+                print_debug("Aplicando bônus percentual.")
+                print_debug(f"Percentual adicional: {ic.valor * 100:.2f}%")
+                print_debug(f"Percentual acumulado: {perc * 100:.2f}%")
 
             elif ic.tipo == "admissao_bonus":
                 # Bônus para admitidos até determinado dia
                 if admitido_no_mes and func.data_admissao.day <= ic.data_inicio.day:
                     bonus += ic.valor
+
+                    print_debug("Aplicando bônus de admissão.")
+                    print_debug(f"Valor do bônus de admissão: R$ {ic.valor:,.2f}")
+                    print_debug(f"Bônus acumulado: R$ {bonus:,.2f}")
 
         # --- Comissão base ---
         valor_comissao_bruto = base_vendas * perc
@@ -346,7 +442,23 @@ def calcular_comissionamento(
         )
         bonus += bonus_faixa
 
+        if bonus_faixa:
+            print_debug("Aplicando bônus por faixa.")
+            print_debug(f"Bônus por faixa calculado: R$ {bonus_faixa:,.2f}")
+            print_debug(f"Bônus total acumulado: R$ {bonus:,.2f}")
+
         valor_final = valor_comissao_proporcional + bonus
+
+        print_debug("")
+        print_debug("---------- RESUMO DO CÁLCULO ----------")
+        print_debug(f"Base de vendas: R$ {base_vendas:,.2f}")
+        print_debug(f"Percentual de comissão: {perc * 100:.2f}%")
+        print_debug(f"Comissão bruta = R$ {base_vendas:,.2f} x {perc * 100:.2f}% = R$ {valor_comissao_bruto:,.2f}")
+        print_debug(f"Fator proporcional aplicado: {fator:.4f}")
+        print_debug(f"Comissão proporcional = R$ {valor_comissao_bruto:,.2f} x {fator:.4f} = R$ {valor_comissao_proporcional:,.2f}")
+        print_debug(f"Bônus total: R$ {bonus:,.2f}")
+        print_debug(f"VALOR FINAL = R$ {valor_final:,.2f}")
+        print_debug("----------------------------------------")
 
         resultados.append(
             ResultadoComissionamento(
@@ -368,6 +480,7 @@ def calcular_comissionamento(
 # ---------------------------------------------------------------------------
 # Bônus por faixa de venda (regra de dezembro e similares)
 # ---------------------------------------------------------------------------
+
 
 def _calcular_bonus_faixa(
     eh_gerente: bool,
@@ -404,6 +517,7 @@ def _faixa(valor: float, faixas: list[tuple[float, float, float]]) -> float:
             return bonus
     return 0.0
 
+
 def carregar_overrides_do_mes(
     regras_mongo: list[dict],
     ano: int,
@@ -435,6 +549,7 @@ def carregar_overrides_do_mes(
 
     return overrides_combinados
 
+
 def carregar_intercorrencias_do_mes(
     regras_mongo: list[dict],
     ano: int,
@@ -451,32 +566,72 @@ def carregar_intercorrencias_do_mes(
         for ic in doc.get("intercorrencias", []):
             sazonal = IntercorrenciaSazonal(**ic)
             if sazonal.esta_vigente(ano, mes):
-                resultado.append(Intercorrencia(
-                    matricula=sazonal.matricula,
-                    tipo=sazonal.tipo,
-                    data_inicio=sazonal.vigencia_inicio,
-                    data_fim=sazonal.vigencia_fim,
-                    valor=sazonal.valor,
-                ))
+                resultado.append(
+                    Intercorrencia(
+                        matricula=sazonal.matricula,
+                        tipo=sazonal.tipo,
+                        data_inicio=sazonal.vigencia_inicio,
+                        data_fim=sazonal.vigencia_fim,
+                        valor=sazonal.valor,
+                    )
+                )
     return resultado
 
+
 if __name__ == "__main__":
-        output_ia = {
-  "tipo": "intercorrencia",
-  "override": None,
-  "intercorrencias": [
-    {
-      "matricula": "MATRIC-227",
-      "tipo": "perc_bonus",
-      "valor": 0.1,
-      "vigencia_inicio": "2024-01-01",
-      "vigencia_fim": "2024-12-31"
+    DEBUG_COMISSIONAMENTO = True
+
+    output_ia = {
+        "tipo": "intercorrencia",
+        "override": None,
+        "intercorrencias": [
+            {
+                "matricula": "MATRIC-10",
+                "tipo": "bonus_venda",
+                "valor": 3500,
+                "vigencia_inicio": "2025-01-01",
+                "vigencia_fim": "2025-12-31",
+            },
+            {
+                "matricula": "MATRIC-10",
+                "tipo": "bonus_venda",
+                "valor": 4000,
+                "vigencia_inicio": "2025-01-01",
+                "vigencia_fim": "2025-12-31",
+            },
+            {
+                "matricula": "MATRIC-10",
+                "tipo": "bonus_venda",
+                "valor": 4500,
+                "vigencia_inicio": "2025-01-01",
+                "vigencia_fim": "2025-12-31",
+            },
+            {
+                "matricula": "MATRIC-20",
+                "tipo": "bonus_venda",
+                "valor": 3500,
+                "vigencia_inicio": "2025-01-01",
+                "vigencia_fim": "2025-12-31",
+            },
+            {
+                "matricula": "MATRIC-20",
+                "tipo": "bonus_venda",
+                "valor": 4000,
+                "vigencia_inicio": "2025-01-01",
+                "vigencia_fim": "2025-12-31",
+            },
+            {
+                "matricula": "MATRIC-20",
+                "tipo": "bonus_venda",
+                "valor": 4500,
+                "vigencia_inicio": "2025-01-01",
+                "vigencia_fim": "2025-12-31",
+            },
+        ],
+        "justificativa": "Regra de bônus por faixa de venda individual foi aplicada para marcas 10 e 20, com base no valor total de vendas superior a R$40 mil, conforme especificado no contexto de regras de comissionamento.",
     }
-  ],
-  "justificativa": "A solicitação pede aumento de 10% na comissão do funcionário MATRIC-227, o que se enquadra no tipo perc_bonus conforme regra de intercorrência para ajuste percentual individual."
-}
-        
-        funcionarios = [
+
+    funcionarios = [
         Funcionario(
             matricula="MATRIC-227",
             cod_marca=10,
@@ -489,23 +644,25 @@ if __name__ == "__main__":
             descr_cargo="Vendedor Loja",
         )
     ]
-        
-        vendas = [
-        Venda(matricula="MATRIC-227", cod_marca=10, cod_loja="LOJA-1", vlr_venda=25361.90)
+
+    vendas = [
+        Venda(
+            matricula="MATRIC-227", cod_marca=10, cod_loja="LOJA-1", vlr_venda=25361.90
+        )
     ]
 
-        tabela_comissao = [
-            ComissionamentoBase(cod_marca=10, cod_cargo=300, perc_comissao=0.025)  # 2.5%
-        ]
+    tabela_comissao = [
+        ComissionamentoBase(cod_marca=10, cod_cargo=300, perc_comissao=0.025)  # 2.5%
+    ]
 
     # --- Converter intercorrências do output da IA ---
-        intercorrencias = carregar_intercorrencias_do_mes(
-            regras_mongo=[output_ia],
-            ano=2024,
-            mes=12,
-        )
+    intercorrencias = carregar_intercorrencias_do_mes(
+        regras_mongo=[output_ia],
+        ano=2024,
+        mes=12,
+    )
 
-        resultados = calcular_comissionamento(
+    resultados = calcular_comissionamento(
         funcionarios=funcionarios,
         vendas=vendas,
         tabela_comissao=tabela_comissao,
@@ -513,9 +670,9 @@ if __name__ == "__main__":
         ano=2024,
         mes=12,
     )
-        
-        for r in resultados:
-            print(f"""
+
+    for r in resultados:
+        print(f"""
 Matrícula:       {r.matricula}
 Base de vendas:  R$ {r.base_vendas:,.2f}
 % Comissão:      {r.perc_comissao * 100:.2f}%
