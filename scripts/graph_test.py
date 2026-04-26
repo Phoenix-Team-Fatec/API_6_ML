@@ -7,11 +7,13 @@ from rich.syntax import Syntax
 from rich.table import Table
 from rich import print as rprint
 from dotenv import load_dotenv
+from src.agent.observability.setup import setup_observability
 
 load_dotenv()
+setup_observability()
 
 console = Console()
-graph = build_graph()
+graph = build_graph(provider='google-genai')
 
 
 def format_json(data) -> None:
@@ -78,7 +80,7 @@ def main():
         border_style="blue"
     ))
 
-    result = graph.invoke({
+    result = graph({
         "messages": [HumanMessage(content=(
             "Os funcionários abaixo receberam um bônus ﬁxo de R$20.000 por" 
             "tempo de casa a ser acrescido na sua respectiva base de calculo de"
@@ -112,7 +114,7 @@ def main():
         "raw_output": "",
         "validated_output": None,
         "review_errors": [],
-        "iterations": 0,
+        "iteration": 0,
     })
 
     format_json(result)

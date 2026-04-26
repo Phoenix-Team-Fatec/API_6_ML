@@ -11,6 +11,8 @@ from src.agent.tools.rag_rules_tool import buscar_trecho_codigo
 from src.agent.prompts.system_promt import SYSTEM_PROMPT
 from src.agent.models.outputs import RespostaAgente
 
+from src.agent.observability.tracing import trace_block
+
 TOOLS = [
     buscar_regras_negocio,
     buscar_trecho_codigo,
@@ -41,12 +43,21 @@ def build_agent_node(provider: str = 'groq'):
         content = (response.content or "") if hasattr(response, "content") else ""
         is_ready = content.strip() == "PRONTO_PARA_EDITAR"
 
-        if not has_tool_calls and not is_ready:
-            correction = SystemMessage(content=(
-                "Você deve chamar uma tool para buscar contexto "
-                "OU responder exatamente 'PRONTO_PARA_EDITAR'. "
-                "Nenhuma outra resposta é aceita."
-            ))
+        if not has_tool_calls and not is_ready: 
+            with trace_block(
+                "agent_protocol_violation",
+                provider=provider,
+                iteration=state.get("iteration", 0),
+                has_tool_calls=False,
+                is_ready=False,
+                content_preview=content[:200],
+            ):
+                correction = SystemMessage(content=(
+                    "Você deve chamar uma tool para buscar contexto "
+                    "OU responder exatamente 'PRONTO_PARA_EDITAR'. "
+                    "Nenhuma outra resposta é aceita."
+                ))
+
             return {
                 "messages": [response, correction],
                 "iteration": state.get("iteration", 0) + 1,
@@ -114,33 +125,51 @@ def build_review_node():
                 "validated_output": None,
                 "review_attempts": review_attempts + 1,
             }
-        
-        # Parse do JSON
-        try:
-            data = json.loads(_limpar_json(raw))
-        except json.JSONDecodeError as e:
-            errors.append(f"JSON inválido: {str(e)}")
-            return {
-                "review_errors": errors,
-                "validated_output": None,
-                "review_attempts": review_attempts + 1,
-            }
-        
-        # Validacao do schema PyDantic
-        try:
-            validated = RespostaAgente.model_validate(data)
-        except ValidationError as e:
-            for err in e.errors():
-                campo = " → ".join(str(c) for c in err["loc"])
-                errors.append(f"Campo '{campo}': {err['msg']}")
-            return {
-                "review_errors": errors,
-                "validated_output": None,
-                "review_attempts": review_attempts + 1,
-            }
-
-        # Validacao de negocio adicionais 
-        errors.extend(_validar_regras_negocio(validated))
+            
+        # Etapa 1: Parse do JSON
+        with trace_block("parse_json", raw_length=len(raw)) as span:
+            cleaned = _limpar_json(raw)
+            span.set_attribute("cleaned_length", len(cleaned))
+            try:
+                data = json.loads(cleaned)
+                span.set_attribute("success", True)
+            except json.JSONDecodeError as e:
+                span.set_attribute("success", False)
+                span.set_attribute("error", str(e))
+                errors.append(f"JSON inválido: {str(e)}")
+                return {
+                    "review_errors": errors,
+                    "validated_output": None,
+                    "review_attempts": review_attempts + 1,
+                }
+ 
+        # Etapa 2: Validação do schema Pydantic
+        with trace_block("schema_validation") as span:
+            try:
+                validated = RespostaAgente.model_validate(data)
+                span.set_attribute("success", True)
+            except ValidationError as e:
+                failed_fields = [
+                    " → ".join(str(c) for c in err["loc"]) for err in e.errors()
+                ]
+                span.set_attribute("success", False)
+                span.set_attribute("failed_fields", failed_fields)
+                for err in e.errors():
+                    campo = " → ".join(str(c) for c in err["loc"])
+                    errors.append(f"Campo '{campo}': {err['msg']}")
+                return {
+                    "review_errors": errors,
+                    "validated_output": None,
+                    "review_attempts": review_attempts + 1,
+                }
+ 
+        # Etapa 3: Regras de negócio
+        with trace_block("business_rules", tipo=validated.tipo) as span:
+            business_errors = _validar_regras_negocio(validated)
+            span.set_attribute("violations_count", len(business_errors))
+            if business_errors:
+                span.set_attribute("violations", business_errors)
+            errors.extend(business_errors)
         
         if errors:
             return {
@@ -173,24 +202,42 @@ def _extrair_contexto_das_mensagens(messages: list) -> dict:
 
 
 def _limpar_json(raw: str) -> str:
-    """Remove blocos markdown caso o modelo os inclua mesmo instruído a não."""
-    raw = raw.strip()
-    if "Codigo gerado:" in raw:
-        raw = raw.split("Codigo gerado:", 1)[1].strip()
-    if "Código gerado:" in raw:
-        raw = raw.split("Código gerado:", 1)[1].strip()
-    if raw.startswith("```"):
-        linhas = raw.splitlines()
-        raw = "\n".join(
-            l for l in linhas
-            if not l.strip().startswith("```")
-        ).strip()
-    # Mantem somente o bloco JSON entre o primeiro '{' e o ultimo '}'
-    start = raw.find("{")
-    end = raw.rfind("}")
-    if start != -1 and end != -1 and end > start:
-        raw = raw[start:end + 1]
-    return raw
+    """
+    Remove blocos markdown e extrai o JSON entre '{' e '}'.
+    Instrumentado para registrar quais heurísticas foram acionadas.
+    """
+    with trace_block("limpar_json", input_length=len(raw)) as span:
+        raw = raw.strip()
+        had_codigo_prefix = False
+        had_markdown = False
+ 
+        if "Codigo gerado:" in raw:
+            raw = raw.split("Codigo gerado:", 1)[1].strip()
+            had_codigo_prefix = True
+        if "Código gerado:" in raw:
+            raw = raw.split("Código gerado:", 1)[1].strip()
+            had_codigo_prefix = True
+        if raw.startswith("```"):
+            had_markdown = True
+            linhas = raw.splitlines()
+            raw = "\n".join(
+                l for l in linhas
+                if not l.strip().startswith("```")
+            ).strip()
+ 
+        start = raw.find("{")
+        end = raw.rfind("}")
+        json_found = start != -1 and end != -1 and end > start
+        if json_found:
+            raw = raw[start:end + 1]
+ 
+        span.set_attribute("had_codigo_prefix", had_codigo_prefix)
+        span.set_attribute("had_markdown", had_markdown)
+        span.set_attribute("json_braces_found", json_found)
+        span.set_attribute("output_length", len(raw))
+ 
+        return raw
+
 
 
 def _validar_regras_negocio(resposta: RespostaAgente) -> list[str]:
