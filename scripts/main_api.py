@@ -1,8 +1,10 @@
 import json
-from typing import Optional
+import traceback
+from typing import Optional, TypedDict, List, Dict
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
+from src.agent.rules.base_algorithm import ComissionamentoBase, Funcionario, Venda, calcular_comissionamento, carregar_intercorrencias_do_mes
 from src.agent.graph.builder import build_graph
 # from src.agent.service.change_request_service import ChangeRequestService
 from src.agent.config import settings
@@ -120,4 +122,30 @@ def ask(user_input: str):
             })
         return validated.model_dump()
     except Exception as e:
+        traceback.print_exc()
+        raise HTTPException(status_code=404, detail=str(e))
+    
+@app.post("/commission-algorithm", tags=["Comissão"], summary="Calculo de comissão")
+def calculate_commission(regras_mongo: List[Dict], funcionarios: List[Funcionario], vendas: List[Venda], tabela_comissao: List[ComissionamentoBase], ano: int, mes: int):
+    try:
+        # Calcula Intercorrencias
+        intercorrencias = carregar_intercorrencias_do_mes(
+            regras_mongo=regras_mongo,
+            ano=ano,
+            mes=mes,
+        )
+
+        # Calcula resultado da comissão
+        resultados = calcular_comissionamento(
+            funcionarios=funcionarios,
+            vendas=vendas,
+            tabela_comissao=tabela_comissao,
+            intercorrencias=intercorrencias,
+            ano=ano,
+            mes=mes,
+        )
+
+        return resultados
+    except Exception as e:
+        traceback.print_exc()
         raise HTTPException(status_code=404, detail=str(e))

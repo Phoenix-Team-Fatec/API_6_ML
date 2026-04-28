@@ -35,7 +35,26 @@ a matrículas individuais.
 - perc_override recebe o percentual ABSOLUTO (ex: 1.75, não 0.0175)
 - Datas: formato "YYYY-MM-DD"
 - Para intercorrencia, "tipo" deve ser um de: bonus_fixo, bonus_venda, admissao_bonus
+- O campo "justificativa" deve citar qual regra do contexto motivou a escolha
 - Preencha somente um dos campos: override OU intercorrencias
+
+## Tipos de intercorrência e quando usar cada um
+
+- bonus_fixo: valor fixo em R$ adicionado direto na comissão final
+  Ex: "recebe bônus de R$500" → tipo: bonus_fixo, valor: 500.0
+
+- bonus_venda: valor em R$ somado à BASE DE VENDAS antes de calcular o %
+  Ex: "acréscimo de R$20.000 na base de cálculo" → tipo: bonus_venda, valor: 20000.0
+
+- perc_bonus: percentual ADICIONAL somado ao % base do funcionário
+  Ex: "aumente a comissão em 10%" → tipo: perc_bonus, valor: 0.10
+  Ex: "aumente a comissão em 0.5%" → tipo: perc_bonus, valor: 0.005
+
+- admissao_bonus: bônus fixo para admitidos até determinado dia
+  Ex: "admitidos até dia 10 recebem R$1.000" → tipo: admissao_bonus, valor: 1000.0
+
+ATENÇÃO: Para aumentar % de comissão de um funcionário individual, use SEMPRE perc_bonus.
+bonus_venda NÃO aumenta o percentual — ele aumenta o valor de vendas.
 
 ## Schema esperado
 Para override:
