@@ -42,6 +42,15 @@ class OverridesMensais(BaseModel):
         ),
     )
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalizar_mapas_vazios(cls, data):
+        if isinstance(data, dict):
+            for field in ("perc_override", "marca_override", "perc_adicional"):
+                if data.get(field) is None:
+                    data[field] = {}
+        return data
+
     @model_validator(mode="after")
     def validar_periodo(self) -> OverridesMensais:
         if self.data_fim < self.data_inicio:

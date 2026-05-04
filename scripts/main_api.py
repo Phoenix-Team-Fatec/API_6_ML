@@ -113,7 +113,7 @@ def ask(user_input: str):
                 "agent_blocked": False
             }
 
-        response = graph.invoke(inputs)
+        response = graph(inputs)
 
         validated = response.get("validated_output")
         if validated is None:
@@ -134,7 +134,6 @@ def calculate_commission(regras_mongo: List[Dict], funcionarios: List[Funcionari
             ano=ano,
             mes=mes,
         )
-
         # Calcula resultado da comissão
         resultados = calcular_comissionamento(
             funcionarios=funcionarios,
