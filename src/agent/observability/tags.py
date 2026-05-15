@@ -37,11 +37,18 @@ def apply_trace_tags(state: dict, provider: str) -> None:
     Deve ser chamada DEPOIS do app.invoke(), ainda dentro do span raiz
     (ou seja, dentro do wrapper decorado com @mlflow.trace).
     """
+    
+    tokens_input = int(state.get("tokens_input", 0) or 0)
+    tokens_output = int(state.get("tokens_output", 0) or 0)
+
     tags: dict[str, Any] = {
         "provider": provider,
         "response_type": _response_type(state),
         "final_status": _final_status(state),
         "iteration_count": str(state.get("iteration", 0)),
         "review_attempts": str(state.get("review_attempts", 0)),
+        "tokens_input": str(tokens_input),
+        "tokens_output": str(tokens_output),
+        "tokens_total": str(tokens_input + tokens_output),
     }
     mlflow.update_current_trace(tags=tags)

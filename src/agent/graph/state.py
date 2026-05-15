@@ -1,4 +1,6 @@
 from typing import Annotated, Optional, TypedDict, Sequence
+from operator import add 
+
 from langchain_core.messages import BaseMessage
 from langgraph.graph.message import add_messages
 from src.agent.models.outputs import RespostaAgente
@@ -32,6 +34,10 @@ class State(TypedDict):
     
     #Output final em JSON
     validated_output: Optional[RespostaAgente]
+    
+    # Contangem de tokens usados
+    tokens_input: Annotated[int, add] 
+    tokens_output: Annotated[int, add] 
     
     
 

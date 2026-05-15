@@ -13,7 +13,7 @@ load_dotenv()
 setup_observability()
 
 console = Console()
-graph = build_graph(provider='google-genai')
+graph = build_graph(provider='groq')
 
 
 def format_json(data) -> None:

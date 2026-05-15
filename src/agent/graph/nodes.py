@@ -10,7 +10,7 @@ from src.agent.tools.rag_code_tool import buscar_regras_negocio
 from src.agent.tools.rag_rules_tool import buscar_trecho_codigo
 from src.agent.prompts.system_promt import SYSTEM_PROMPT
 from src.agent.models.outputs import RespostaAgente
-
+from src.agent.utils.tokens import extract_tokens
 from src.agent.observability.tracing import trace_block
 
 TOOLS = [
@@ -39,6 +39,8 @@ def build_agent_node(provider: str = 'groq'):
             messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
             
         response = llm_with_tools.invoke(messages)
+        input_tokens, output_tokens = extract_tokens(response)
+        
         has_tool_calls = hasattr(response, 'tool_calls') and response.tool_calls
         content = (response.content or "") if hasattr(response, "content") else ""
         is_ready = content.strip() == "PRONTO_PARA_EDITAR"
@@ -62,6 +64,8 @@ def build_agent_node(provider: str = 'groq'):
                 "messages": [response, correction],
                 "iteration": state.get("iteration", 0) + 1,
                 "agent_blocked": False,
+                "tokens_input": input_tokens,
+                "tokens_output": output_tokens,
             }
 
         return {
@@ -69,6 +73,8 @@ def build_agent_node(provider: str = 'groq'):
             "iteration": state.get('iteration', 0) + 1,
             "agent_blocked": False,
             "agent_errors": [],
+            "tokens_input": input_tokens,
+            "tokens_output": output_tokens,
         }
     
     return agent_node
@@ -80,7 +86,8 @@ def build_code_editor_node() -> State:
     e gera o código Python final com a alteração.
     """
     editor = CodeGeneratorModels()
-    llm = editor.hf_model()
+    # llm = editor.hf_model()
+    llm = editor.groq_model()
     prompt = build_edit_prompt()
     chain = prompt | llm
     
@@ -94,12 +101,15 @@ def build_code_editor_node() -> State:
             "code_context": context.get("code", state.get('code_context', '')),
         }) 
         
+        input_tokens, output_tokens = extract_tokens(response)
         generated = response.content if hasattr(response, 'content') else str(response)
         
         return {
             'raw_output': generated,
             'generated_code': generated,
-            'messages': [AIMessage(content=f'Código gerado:{generated}\n')]
+            'messages': [AIMessage(content=f'Código gerado:{generated}\n')],
+            'tokens_input': input_tokens,
+            'tokens_output': output_tokens,
         }
         
     return code_editor_node

@@ -1,31 +1,27 @@
+import mlflow
 from langgraph.graph import StateGraph
 
 from src.agent.graph.state import State
-from src.agent.graph.nodes import (build_agent_node, 
-                                   build_code_editor_node, 
-                                   build_review_node,
-                                   tools_node
-                                   )
-
+from src.agent.graph.nodes import (
+    build_agent_node,
+    build_code_editor_node,
+    build_review_node,
+    tools_node,
+)
 from src.agent.graph.edges import route_agent, route_review
 from src.agent.observability.tags import apply_trace_tags
 
-import mlflow
 
 def build_graph(provider: str = 'groq'):
     graph = StateGraph(State)
-    
-    # Nós 
+
     graph.add_node('agent_node', build_agent_node(provider=provider))
     graph.add_node('code_editor_node', build_code_editor_node())
     graph.add_node('review_node', build_review_node())
     graph.add_node('tools', tools_node)
-    
-    
-    # Ponto de início
+
     graph.set_entry_point('agent_node')
-    
-    # Edges
+
     graph.add_conditional_edges(
         'agent_node',
         route_agent,
@@ -36,50 +32,65 @@ def build_graph(provider: str = 'groq'):
             'end': '__end__',
         }
     )
-    
-    # Tools sempre retorna para o agente
     graph.add_edge('tools', 'agent_node')
-    
-    # Revisao do codigo gerado
     graph.add_edge('code_editor_node', 'review_node')
-    
     graph.add_conditional_edges(
         "review_node", route_review,
         {
-            "retry": "code_editor_node",   # erros recuperáveis → tenta de novo
-            "end": '__end__',         # validado → encerra
+            "retry": "code_editor_node",
+            "end": '__end__',
         }
     )
-    
+
     compiled = graph.compile()
-    
     return _wrap_with_observability(compiled, provider)
-    
-    
+
+
+def _build_token_usage(final_state: dict) -> dict:
+    """Consolida tokens acumulados no state em um dict pronto para a API."""
+    input_tokens = int(final_state.get("tokens_input", 0) or 0)
+    output_tokens = int(final_state.get("tokens_output", 0) or 0)
+    return {
+        "input": input_tokens,
+        "output": output_tokens,
+        "total": input_tokens + output_tokens,
+    }
+
+
+def _build_api_response(final_state: dict) -> dict | None:
+    """
+    Monta o payload pronto para a API no formato:
+        {
+            "rule_json": {...},      # validated_output serializado
+            "token_usage": {...}     # input, output, total
+        }
+    Retorna None se não houver validated_output (o endpoint trata como erro).
+    """
+    validated = final_state.get("validated_output")
+    if validated is None:
+        return None
+    return {
+        "rule_json": validated.model_dump(mode="json"),
+        "token_usage": _build_token_usage(final_state),
+    }
+
+
 def _wrap_with_observability(compiled_graph, provider: str):
     """
     Envolve o grafo compilado em uma função decorada com @mlflow.trace.
- 
-    Isso cria um ÚNICO trace raiz para cada execução, englobando:
-    - os spans do autolog (um por nó),
-    - os spans manuais (review, guardrail, limpar_json).
- 
-    Depois que a execução termina, aplicamos as tags no trace raiz
-    a partir do state final (provider, response_type, final_status etc.).
+
+    No final da execução:
+    - Aplica tags no trace raiz (provider, response_type, final_status etc.).
+    - Anexa `api_response` ao resultado, pronto para devolver na API.
+    O state interno (validated_output, tokens_input, etc.) permanece intacto
+    e pode ser inspecionado por quem chama, se precisar.
     """
     @mlflow.trace(name="agent_run")
     def run(inputs: dict) -> dict:
         final_state = compiled_graph.invoke(inputs)
         apply_trace_tags(final_state, provider=provider)
+        final_state["api_response"] = _build_api_response(final_state)
         return final_state
- 
-    # Expõe atributos úteis do grafo compilado (ex.: get_graph para o mermaid).
+
     run.compiled = compiled_graph
     return run
-
-
-    
-
-if __name__ == "__main__":
-    app = build_graph()
-    print(app.get_graph().draw_mermaid())

@@ -1,129 +1,100 @@
-import json
 import traceback
-from typing import Optional, TypedDict, List, Dict
-
+from contextlib import asynccontextmanager
+from typing import Dict, List
+ 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel, Field
-from src.agent.rules.base_algorithm import ComissionamentoBase, Funcionario, Venda, calcular_comissionamento, carregar_intercorrencias_do_mes
+from langchain_core.messages import HumanMessage
+ 
 from src.agent.graph.builder import build_graph
-# from src.agent.service.change_request_service import ChangeRequestService
-from src.agent.config import settings
-from langchain.messages import HumanMessage
-from src.agent.rag.vector_store import VectorStore
-from src.agent.rag.code_indexer import load_codebase
-from src.agent.ingestion.load_data import load_pdf
-
+from src.agent.observability.setup   import setup_observability
+from src.agent.rules.base_algorithm import (
+    ComissionamentoBase,
+    Funcionario,
+    Venda,
+    calcular_comissionamento,
+    carregar_intercorrencias_do_mes,
+)
+ 
+ 
+# -----------------------------------------------------------------------------
+# Estado da aplicação: grafo compilado UMA vez no startup, reusado em todas
+# as requisições. Evita re-compilar a cada chamada (carrega prompts do MLflow,
+# instancia LLMs e tools).
+# -----------------------------------------------------------------------------
+state: dict = {}
+ 
+ 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    setup_observability()
+    state["graph"] = build_graph(provider="groq")
+    yield
+    # Shutdown (nada a limpar por enquanto)
+    state.clear()
+ 
+ 
 app = FastAPI(
     title="🤖 Agent Code Editor API",
     description="""
     API para manutenção automatizada de código utilizando RAG e LLMs.
-    
     *   **Ingestão**: Indexa códigos e regras de negócio em bancos vetoriais.
     *   **Agente**: Processa pedidos de mudança e sugere patches de código.
     """,
     version="1.0.0",
-    contact={
-        "name": "Phoenix Team - FATEC",
-    }
+    contact={"name": "Phoenix Team - FATEC"},
+    lifespan=lifespan,
 )
-
-# service = ChangeRequestService()
-
-class ChangeRequestPayload(BaseModel):
-    request: str = Field(
-        ..., 
-        description="Descrição da alteração desejada no código",
-        examples=["Somente este mês, a % de comissão de vendas deve ser 5%."]
-    )
-    apply: bool = Field(
-        False, 
-        description="Se True, aplica a mudança no arquivo. Se False (default), apenas simula (dry-run)."
-    )
-
-class IngestCodePayload(BaseModel):
-    root: Optional[str] = Field(None, description="Caminho da pasta raiz do código")
-    overwrite: bool = Field(False, description="Limpar banco vetorial antes de indexar")
-
-    class Config:
-        json_schema_extra = {"example": {"root": "C:/Projetos/MeuApp", "overwrite": False}}
-
-class IngestRulesPayload(BaseModel):
-    pdf_path: str = Field(..., alias="pdf", description="Caminho do arquivo PDF com as regras")
-    overwrite: bool = False
-
+ 
+ 
 @app.get("/health", tags=["Monitoramento"], summary="Verifica status da API")
 async def health_check():
     return {"status": "ok"}
-
-# @app.post("/change-request", tags=["Agente"], summary="Solicitar alteração de código")
-# async def change_request(change_request: ChangeRequestPayload):
-#     try:
-#         result = service.process_change_request(
-#             user_request=change_request.request,
-#             dry_run=not change_request.apply,
-#         )
-#         return result
-#     except Exception as e:
-#         raise HTTPException(status_code=500, detail=str(e))
-    
-@app.post("/ingestion/code", tags=["Ingestão de Dados"], summary="Indexar Base de Código")
-def ingest_code(payload: IngestCodePayload):
-    root = payload.root or settings.code_root_path
-    store = VectorStore()
-    chunks = load_codebase(root)
-    store.ingest_documents(
-       chunks=chunks,
-       table_name=settings.code_table_name,
-       overwrite=payload.overwrite,
-   )
-    return {"message": f"Código ingerido com sucesso a partir de {root}"}
-
-@app.post("/ingestion/rules", tags=["Ingestão de Dados"], summary="Indexar Regras de Negócio (PDF)")
-def ingest_rules(payload: IngestRulesPayload):
-    store = VectorStore()
-    chunks = load_pdf(payload.pdf)
-    store.ingest_documents(
-       chunks=chunks,
-       table_name=settings.rules_table_name,
-       overwrite=payload.overwrite,
-   )
-    return {"message": f"Regras ingeridas com sucesso a partir de {payload.pdf}"}
-
-
-# @app.post("/generate-code", tags=["Agente"], summary="Gerar código a partir de descrição")
-# def generate_code(query: str):
-#     try:
-#         response_json = service.generate_code(query)
-#         return response_json
-#     except Exception as e:
-#         raise HTTPException(status_code=404, detail=str(e))
-    
+ 
+ 
 @app.post("/agent", tags=["Agente"], summary="Interação usuário com agente")
 def ask(user_input: str):
+    """
+    Recebe uma solicitação em linguagem natural e devolve o objeto de regra
+    gerado pelo agente junto com o consumo de tokens.
+ 
+    Formato da resposta:
+        {
+            "rule_json":   {...},          # objeto OverridesMensais ou IntercorrenciaSazonal
+            "token_usage": {"input": N, "output": N, "total": N}
+        }
+    """
     try:
-        graph = build_graph()
-
+        graph = state["graph"]
         inputs = {
-                "messages": [HumanMessage(content=user_input)],
-                "user_request": user_input,
-                "iteration": 0,
-                "review_attempts": 0,
-                "agent_errors": [],
-                "review_errors": [],
-                "agent_blocked": False
-            }
-
-        response = graph.invoke(inputs)
-
-        validated = response.get("validated_output")
-        if validated is None:
-            raise HTTPException(status_code=422, detail={
-                "errors": response.get("review_errors", ["Sem output validado"])
-            })
-        return validated.model_dump()
+            "messages": [HumanMessage(content=user_input)],
+            "user_request": user_input,
+            "iteration": 0,
+            "review_attempts": 0,
+            "agent_errors": [],
+            "review_errors": [],
+            "agent_blocked": False,
+        }
+        result = graph(inputs)
+ 
+        api_response = result.get("api_response")
+        if api_response is None:
+            # Grafo terminou sem produzir um validated_output.
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "errors": result.get("review_errors", ["Sem output validado"]),
+                },
+            )
+        return api_response
+ 
+    except HTTPException:
+        # Re-propaga HTTPException sem mascarar (ex.: 422 acima vira 500).
+        raise
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))
+
     
 @app.post("/commission-algorithm", tags=["Comissão"], summary="Calculo de comissão")
 def calculate_commission(regras_mongo: List[Dict], funcionarios: List[Funcionario], vendas: List[Venda], tabela_comissao: List[ComissionamentoBase], ano: int, mes: int):
