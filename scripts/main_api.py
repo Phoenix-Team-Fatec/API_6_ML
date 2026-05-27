@@ -126,7 +126,15 @@ def ask(user_input: str):
         raise HTTPException(status_code=404, detail=str(e))
     
 @app.post("/commission-algorithm", tags=["Comissão"], summary="Calculo de comissão")
-def calculate_commission(regras_mongo: List[Dict], funcionarios: List[Funcionario], vendas: List[Venda], tabela_comissao: List[ComissionamentoBase], ano: int, mes: int):
+def calculate_commission(
+    regras_mongo: List[Dict], 
+    funcionarios: List[Funcionario], 
+    vendas: List[Venda], 
+    tabela_comissao: List[ComissionamentoBase], 
+    ano: int, 
+    mes: int,
+    auditoria: bool = True
+):
     try:
         # Calcula Intercorrencias
         intercorrencias = carregar_intercorrencias_do_mes(
@@ -135,7 +143,7 @@ def calculate_commission(regras_mongo: List[Dict], funcionarios: List[Funcionari
             mes=mes,
         )
 
-        # Calcula resultado da comissão
+        # Calcula resultado da comissão com auditoria
         resultados = calcular_comissionamento(
             funcionarios=funcionarios,
             vendas=vendas,
@@ -143,9 +151,27 @@ def calculate_commission(regras_mongo: List[Dict], funcionarios: List[Funcionari
             intercorrencias=intercorrencias,
             ano=ano,
             mes=mes,
+            auditoria=auditoria
         )
 
-        return resultados
+        # Retorna estrutura com auditoria se solicitado
+        if auditoria:
+            return {
+                "sucesso": True,
+                "total_funcionarios": len(resultados),
+                "ano": ano,
+                "mes": mes,
+                "resultados": [r.para_dict_com_auditoria() for r in resultados]
+            }
+        else:
+            # Retorna apenas resultado (compatível com código anterior)
+            return {
+                "sucesso": True,
+                "total_funcionarios": len(resultados),
+                "ano": ano,
+                "mes": mes,
+                "resultados": [r.model_dump() for r in resultados]
+            }
     except Exception as e:
         traceback.print_exc()
-        raise HTTPException(status_code=404, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e))

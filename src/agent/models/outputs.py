@@ -152,3 +152,80 @@ class RespostaAgente(BaseModel):
                 "tipo='intercorrencia' exige ao menos um item em 'intercorrencias'"
             )
         return self
+
+
+# ---------------------------------------------------------------------------
+# Auditoria e Rastreamento de Cálculos
+# ---------------------------------------------------------------------------
+
+from datetime import datetime
+
+
+class EtapaCalculo(BaseModel):
+    """Representa uma etapa do cálculo de comissão com rastreamento completo"""
+    
+    numero: int = Field(description="Número sequencial da etapa")
+    secao: str = Field(
+        description="Seção do cálculo: Consolidação, Percentual, Proporcional, Intercorrências, Comissão"
+    )
+    descricao: str = Field(description="Descrição legível da etapa")
+    entrada: dict = Field(description="Valores que entraram nesta etapa")
+    saida: dict = Field(description="Resultado desta etapa")
+    logica_aplicada: str = Field(description="Resumo da lógica aplicada")
+    condicao: Optional[str] = Field(
+        default=None,
+        description="Condição que ativou esta etapa, ex: 'admitido no mês', 'em férias'"
+    )
+    timestamp: datetime = Field(default_factory=datetime.now, description="Momento da execução")
+    
+    def model_dump(self, **kwargs) -> dict:
+        """Serializa com timestamp em ISO format"""
+        data = super().model_dump(**kwargs)
+        data["timestamp"] = self.timestamp.isoformat()
+        return data
+
+
+class ResultadoComissionamentoDetalhado(BaseModel):
+    """Resultado do cálculo de comissão com rastreamento de etapas"""
+    
+    # Dados base (compatível com ResultadoComissionamento)
+    matricula: str = Field(description="Matrícula do funcionário")
+    cod_loja: str = Field(description="Código da loja")
+    cod_marca: int = Field(description="Código da marca")
+    base_vendas: float = Field(description="Base de vendas utilizada")
+    perc_comissao: float = Field(description="Percentual de comissão aplicado")
+    valor_comissao_bruto: float = Field(description="Comissão antes de ajustes")
+    ajuste_proporcional: float = Field(description="Fator de proporcionalidade (0-1)")
+    bonus: float = Field(description="Bônus totais")
+    valor_final: float = Field(description="Valor final de comissão")
+    
+    # NOVO: Rastreamento de etapas
+    etapas: list[EtapaCalculo] = Field(
+        default_factory=list,
+        description="Lista de todas as etapas do cálculo"
+    )
+    
+    def model_dump(self, **kwargs) -> dict:
+        """Serializa resultado com etapas"""
+        data = super().model_dump(**kwargs)
+        return data
+    
+    def para_dict_com_auditoria(self) -> dict:
+        """Retorna estrutura amigável para frontend com resultado e auditoria separados"""
+        return {
+            "matricula": self.matricula,
+            "resultado_final": {
+                "base_vendas": self.base_vendas,
+                "perc_comissao": self.perc_comissao,
+                "valor_comissao_bruto": self.valor_comissao_bruto,
+                "ajuste_proporcional": self.ajuste_proporcional,
+                "bonus": self.bonus,
+                "valor_final": self.valor_final,
+                "cod_loja": self.cod_loja,
+                "cod_marca": self.cod_marca,
+            },
+            "auditoria": {
+                "total_etapas": len(self.etapas),
+                "etapas": [e.model_dump() for e in self.etapas]
+            }
+        }
