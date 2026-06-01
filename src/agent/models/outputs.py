@@ -67,6 +67,14 @@ class OverridesMensais(BaseModel):
                 "(perc_override, marca_override ou perc_adicional)"
             )
         return self
+
+    @model_validator(mode="after")
+    def normalizar_percentuais_decimais(self) -> OverridesMensais:
+        self.perc_override = {
+            key: value * 100 if 0 < value < 0.1 else value
+            for key, value in self.perc_override.items()
+        }
+        return self
     
     
     @model_validator(mode="after")

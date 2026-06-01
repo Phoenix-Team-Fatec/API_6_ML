@@ -17,7 +17,7 @@ def build_graph(provider: str = 'groq'):
     
     # Nós 
     graph.add_node('agent_node', build_agent_node(provider=provider))
-    graph.add_node('code_editor_node', build_code_editor_node())
+    graph.add_node('code_editor_node', build_code_editor_node(provider=provider))
     graph.add_node('review_node', build_review_node())
     graph.add_node('tools', tools_node)
     
@@ -82,4 +82,4 @@ def _wrap_with_observability(compiled_graph, provider: str):
 
 if __name__ == "__main__":
     app = build_graph()
-    print(app.get_graph().draw_mermaid())
+    print(app.compiled.get_graph().draw_mermaid())

@@ -74,13 +74,13 @@ def build_agent_node(provider: str = 'groq'):
     return agent_node
     
 
-def build_code_editor_node() -> State:
+def build_code_editor_node(provider: str = 'groq') -> State:
     """
     Nó especializado que recebe todo o contexto acumulado
     e gera o código Python final com a alteração.
     """
     editor = CodeGeneratorModels()
-    llm = editor.hf_model()
+    llm = editor.groq_model() if provider == 'groq' else editor.hf_model()
     prompt = build_edit_prompt()
     chain = prompt | llm
     
