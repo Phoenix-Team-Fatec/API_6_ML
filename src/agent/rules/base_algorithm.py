@@ -11,7 +11,13 @@ from dataclasses import dataclass, field
 from datetime import date
 from typing import Optional
 
-from src.agent.models.outputs import IntercorrenciaSazonal, OverridesMensais, EtapaCalculo, ResultadoComissionamentoDetalhado
+from src.agent.models.outputs import (
+    IntercorrenciaSazonal,
+    OverridesMensais,
+    RegraComissaoEscopada,
+    EtapaCalculo,
+    ResultadoComissionamentoDetalhado,
+)
 
 # ---------------------------------------------------------------------------
 # Constantes
@@ -254,6 +260,7 @@ def calcular_comissionamento(
     ano: int,
     mes: int,
     overrides: Optional[dict] = None,
+    rate_overrides: Optional[list[RegraComissaoEscopada]] = None,
     auditoria: bool = True,
 ) -> list[ResultadoComissionamentoDetalhado]:
     """
@@ -266,6 +273,8 @@ def calcular_comissionamento(
     """
     if overrides is None:
         overrides = {}
+    if rate_overrides is None:
+        rate_overrides = []
 
     total_dias = dias_no_mes(ano, mes)
     data_competencia = date(ano, mes, 1)
@@ -423,6 +432,8 @@ def calcular_comissionamento(
         perc += overrides.get("perc_adicional", {}).get(
             (func.cod_marca, func.cod_cargo), 0.0
         )
+        perc_antes_rate_override = perc
+        perc = _aplicar_rate_overrides_escopados(perc, func, rate_overrides)
         print_debug(f"Percentual final após adicionais: {perc * 100:.2f}%")
         
         # ETAPA 2b: Registrar acréscimos de percentual
@@ -434,6 +445,16 @@ def calcular_comissionamento(
                 saida={"perc_final": perc},
                 logica=f"Adicionou {(perc - perc_original_com_override) * 100:.2f}% de acréscimo",
                 condicao=f"Override perc_adicional ativo para maio/{ano}"
+            )
+
+        if coletor and perc != perc_antes_rate_override:
+            coletor.registrar(
+                secao="Percentual - Regras Escopadas",
+                descricao="Aplicar regra escopada de percentual",
+                entrada={"perc_base": perc_antes_rate_override},
+                saida={"perc_final": perc},
+                logica="Seleciona o percentual absoluto mais especifico e soma adicionais aplicaveis",
+                condicao="rate_override vigente"
             )
 
         # --- Fator proporcional base ---
@@ -691,6 +712,60 @@ def calcular_comissionamento(
     return resultados
 
 
+def _aplicar_rate_overrides_escopados(
+    perc_base: float,
+    func: Funcionario,
+    rate_overrides: list[RegraComissaoEscopada],
+) -> float:
+    aplicaveis = [
+        regra for regra in rate_overrides
+        if _rate_override_corresponde(func, regra)
+    ]
+
+    absolutos = [
+        regra for regra in aplicaveis
+        if regra.efeito.tipo == "percentual_absoluto"
+    ]
+    if absolutos:
+        perc = max(absolutos, key=_specificidade_rate_override).efeito.valor
+    else:
+        perc = perc_base
+
+    perc += sum(
+        regra.efeito.valor
+        for regra in aplicaveis
+        if regra.efeito.tipo == "percentual_adicional"
+    )
+    return perc
+
+
+def _rate_override_corresponde(func: Funcionario, regra: RegraComissaoEscopada) -> bool:
+    escopo = regra.escopo
+    if escopo.matricula is not None and escopo.matricula != func.matricula:
+        return False
+    if escopo.cod_loja is not None and str(escopo.cod_loja) != str(func.cod_loja):
+        return False
+    if escopo.cod_marca is not None and escopo.cod_marca != func.cod_marca:
+        return False
+    if escopo.cod_cargo is not None and escopo.cod_cargo != func.cod_cargo:
+        return False
+    return True
+
+
+def _specificidade_rate_override(regra: RegraComissaoEscopada) -> int:
+    escopo = regra.escopo
+    score = 0
+    if escopo.cod_loja is not None:
+        score += 1
+    if escopo.cod_marca is not None:
+        score += 1
+    if escopo.cod_cargo is not None:
+        score += 1
+    if escopo.matricula is not None:
+        score += 100
+    return score
+
+
 # ---------------------------------------------------------------------------
 # Bônus por faixa de venda (regra de dezembro e similares)
 # ---------------------------------------------------------------------------
@@ -762,6 +837,25 @@ def carregar_overrides_do_mes(
         overrides_combinados["perc_adicional"].update(parsed["perc_adicional"])
 
     return overrides_combinados
+
+
+def carregar_rate_overrides_do_mes(
+    regras_mongo: list[dict],
+    ano: int,
+    mes: int,
+) -> list[RegraComissaoEscopada]:
+    """
+    Filtra regras rate_override vigentes para o mes de competencia.
+    """
+    resultado: list[RegraComissaoEscopada] = []
+    for doc in regras_mongo:
+        if doc.get("tipo") != "rate_override":
+            continue
+        for item in doc.get("rate_overrides", []):
+            regra = RegraComissaoEscopada(**item)
+            if regra.esta_vigente(ano, mes):
+                resultado.append(regra)
+    return resultado
 
 
 def carregar_intercorrencias_do_mes(

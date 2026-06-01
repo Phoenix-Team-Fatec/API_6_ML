@@ -133,13 +133,66 @@ class IntercorrenciaSazonal(BaseModel):
         ultimo_dia_mes = date(ano, mes, calendar.monthrange(ano, mes)[1])
         return self.vigencia_inicio <= ultimo_dia_mes and self.vigencia_fim >= primeiro_dia_mes
 
+
+class EscopoRegra(BaseModel):
+    """Escopo explicito para uma regra de percentual de comissao."""
+
+    matricula: Optional[str] = None
+    cod_loja: Optional[int] = None
+    cod_marca: Optional[int] = None
+    cod_cargo: Optional[int] = None
+
+    @model_validator(mode="after")
+    def validar_preenchimento(self) -> EscopoRegra:
+        has_matricula = self.matricula is not None and self.matricula.strip() != ""
+        if not any([has_matricula, self.cod_loja is not None, self.cod_marca is not None, self.cod_cargo is not None]):
+            raise ValueError("Ao menos um campo de escopo deve ser preenchido")
+        return self
+
+
+class EfeitoRegra(BaseModel):
+    """Efeito percentual aplicado quando o escopo da regra corresponde."""
+
+    tipo: Literal["percentual_absoluto", "percentual_adicional"]
+    valor: float
+
+    @model_validator(mode="after")
+    def validar_valor(self) -> EfeitoRegra:
+        if self.valor <= 0:
+            raise ValueError("valor deve ser positivo")
+        return self
+
+
+class RegraComissaoEscopada(BaseModel):
+    """Regra sazonal de percentual com escopo flexivel."""
+
+    descricao: str
+    vigencia_inicio: date
+    vigencia_fim: date
+    escopo: EscopoRegra
+    efeito: EfeitoRegra
+
+    @model_validator(mode="after")
+    def validar_periodo(self) -> RegraComissaoEscopada:
+        if self.vigencia_fim < self.vigencia_inicio:
+            raise ValueError(
+                f"vigencia_fim ({self.vigencia_fim}) nao pode ser anterior "
+                f"a vigencia_inicio ({self.vigencia_inicio})"
+            )
+        return self
+
+    def esta_vigente(self, ano: int, mes: int) -> bool:
+        primeiro_dia_mes = date(ano, mes, 1)
+        ultimo_dia_mes = date(ano, mes, calendar.monthrange(ano, mes)[1])
+        return self.vigencia_inicio <= ultimo_dia_mes and self.vigencia_fim >= primeiro_dia_mes
+
 class RespostaAgente(BaseModel):
     """
     Contrato de saída do code_editor.
     Exatamente um dos campos deve ser preenchido por resposta.
     """
 
-    tipo: Literal["override", "intercorrencia"] = Field(
+    tipo: Literal["override", "intercorrencia", "rate_override"] = Field(
         description=(
             "'override' para regras de percentual por marca/cargo. "
             "'intercorrencia' para bônus ou ajustes por matrícula individual."
@@ -152,6 +205,10 @@ class RespostaAgente(BaseModel):
     intercorrencias: Optional[list[IntercorrenciaSazonal]] = Field(
         default=None,
         description="Preenchido quando tipo='intercorrencia'"
+    )
+    rate_overrides: Optional[list[RegraComissaoEscopada]] = Field(
+        default=None,
+        description="Preenchido quando tipo='rate_override'"
     )
     justificativa: str = Field(
         description=(
@@ -167,6 +224,10 @@ class RespostaAgente(BaseModel):
         if self.tipo == "intercorrencia" and not self.intercorrencias:
             raise ValueError(
                 "tipo='intercorrencia' exige ao menos um item em 'intercorrencias'"
+            )
+        if self.tipo == "rate_override" and not self.rate_overrides:
+            raise ValueError(
+                "tipo='rate_override' exige ao menos um item em 'rate_overrides'"
             )
         return self
 

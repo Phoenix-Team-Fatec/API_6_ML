@@ -4,7 +4,7 @@ from typing import Optional, TypedDict, List, Dict
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
-from src.agent.rules.base_algorithm import ComissionamentoBase, Funcionario, Venda, calcular_comissionamento, carregar_intercorrencias_do_mes
+from src.agent.rules.base_algorithm import ComissionamentoBase, Funcionario, Venda, calcular_comissionamento, carregar_intercorrencias_do_mes, carregar_rate_overrides_do_mes
 from src.agent.graph.builder import build_graph
 # from src.agent.service.change_request_service import ChangeRequestService
 from src.agent.config import settings
@@ -142,6 +142,11 @@ def calculate_commission(
             ano=ano,
             mes=mes,
         )
+        rate_overrides = carregar_rate_overrides_do_mes(
+            regras_mongo=regras_mongo,
+            ano=ano,
+            mes=mes,
+        )
         # Calcula resultado da comissão com auditoria
         resultados = calcular_comissionamento(
             funcionarios=funcionarios,
@@ -150,6 +155,7 @@ def calculate_commission(
             intercorrencias=intercorrencias,
             ano=ano,
             mes=mes,
+            rate_overrides=rate_overrides,
             auditoria=auditoria
         )
 

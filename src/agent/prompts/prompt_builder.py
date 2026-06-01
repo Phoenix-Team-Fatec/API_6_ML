@@ -87,6 +87,35 @@ Para intercorrência:
     }
   ]
 }
+
+Para rate_override:
+Use quando a regra alterar percentual de comissao por loja, matricula, marca,
+cargo ou combinacoes desses escopos. Use percentual_absoluto para "recebe 6%"
+ou "passa para 6%"; use percentual_adicional para "recebe mais 1%" ou "+1%".
+Valores devem ser decimais: 0.06 para 6% e 0.01 para +1%.
+{
+  "tipo": "rate_override",
+  "justificativa": "<qual regra foi aplicada e por que>",
+  "override": null,
+  "intercorrencias": null,
+  "rate_overrides": [
+    {
+      "descricao": "Todos os funcionarios da loja 75 recebem 6%.",
+      "vigencia_inicio": "YYYY-MM-DD",
+      "vigencia_fim": "YYYY-MM-DD",
+      "escopo": {
+        "matricula": null,
+        "cod_loja": 75,
+        "cod_marca": null,
+        "cod_cargo": null
+      },
+      "efeito": {
+        "tipo": "percentual_absoluto",
+        "valor": 0.06
+      }
+    }
+  ]
+}
 """
 
 

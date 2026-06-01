@@ -82,6 +82,11 @@ Use "tipo": "intercorrencia" quando a solicitação conceder bônus ou ajuste a 
 - "funcionários X, Y e Z recebem bônus de R$500"
 - "matrícula MATRIC-134 recebe acréscimo de R$200 na comissão"
 
+Use "tipo": "rate_override" quando a solicitação alterar percentual de comissão por loja, matrícula, marca, cargo ou combinações desses escopos. Exemplos:
+- "todos os funcionários da loja 75 recebem 6%"
+- "MATRIC-123 recebe mais 1%"
+- Efeito "recebe 6%" -> percentual_absoluto; efeito "recebe mais 1%" -> percentual_adicional
+
 ## Regras de formato obrigatórias
 - Responda SOMENTE com JSON puro, sem markdown, sem explicações fora do JSON.
 - perc_adicional: valor decimal ex: 0.005 para +0.5%
@@ -90,7 +95,8 @@ Use "tipo": "intercorrencia" quando a solicitação conceder bônus ou ajuste a 
 - perc_override recebe o percentual ABSOLUTO (ex: 1.75, não 0.0175)
 - O campo "justificativa" deve citar qual regra do contexto motivou a escolha
 - Para intercorrencia, "tipo" deve ser um de: bonus_fixo, bonus_venda, admissao_bonus
-- Preencha somente um dos campos: override OU intercorrencias
+- Para rate_override, use percentual decimal: 0.06 para 6% e 0.01 para +1%
+- Preencha somente um dos campos: override OU intercorrencias OU rate_overrides
 
 ## Schema esperado
 Para override:
@@ -120,6 +126,31 @@ Para intercorrência:
       "valor": 500.0,
       "vigencia_inicio": "YYYY-MM-DD",
       "vigencia_fim": "YYYY-MM-DD"
+    }
+  ]
+}
+
+Para rate_override:
+{
+  "tipo": "rate_override",
+  "justificativa": "<qual regra foi aplicada e por quê>",
+  "override": null,
+  "intercorrencias": null,
+  "rate_overrides": [
+    {
+      "descricao": "Todos os funcionarios da loja 75 recebem 6%.",
+      "vigencia_inicio": "YYYY-MM-DD",
+      "vigencia_fim": "YYYY-MM-DD",
+      "escopo": {
+        "matricula": null,
+        "cod_loja": 75,
+        "cod_marca": null,
+        "cod_cargo": null
+      },
+      "efeito": {
+        "tipo": "percentual_absoluto",
+        "valor": 0.06
+      }
     }
   ]
 }

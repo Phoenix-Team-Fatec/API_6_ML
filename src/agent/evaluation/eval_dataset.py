@@ -84,4 +84,32 @@ EVAL_DATASET = [
         },
         "tags": {"category": "override", "subtype": "perc_adicional"},
     },
+    # --- Rate override: percentual absoluto por loja ---
+    {
+        "inputs": {
+            "user_request": (
+                "Todos os funcionarios da loja 75 recebem 6% de comissao "
+                "em julho de 2025."
+            ),
+        },
+        "expectations": {
+            "expected_type": "rate_override",
+            "max_iterations": 6,
+        },
+        "tags": {"category": "rate_override", "subtype": "store_absolute"},
+    },
+    # --- Rate override: adicional por matricula ---
+    {
+        "inputs": {
+            "user_request": (
+                "O funcionario MATRIC-123 recebe mais 1% de comissao "
+                "em julho de 2025."
+            ),
+        },
+        "expectations": {
+            "expected_type": "rate_override",
+            "max_iterations": 6,
+        },
+        "tags": {"category": "rate_override", "subtype": "employee_additive"},
+    },
 ]

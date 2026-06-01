@@ -274,6 +274,15 @@ def _validar_regras_negocio(resposta: RespostaAgente) -> list[str]:
                     f"Matrícula '{ic.matricula}': valor {ic.valor} deve ser positivo."
                 )
 
+    if resposta.tipo == "rate_override" and resposta.rate_overrides:
+        for index, regra in enumerate(resposta.rate_overrides):
+            delta = (regra.vigencia_fim - regra.vigencia_inicio).days
+            if delta > 92:
+                errors.append(
+                    f"rate_overrides[{index}]: vigencia de {delta} dias excede "
+                    f"o maximo permitido de 92 dias para regras sazonais."
+                )
+
     return errors
 
 
