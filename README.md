@@ -46,7 +46,7 @@ Renomeie o arquivo .env_example para .env e preencha suas chaves e caminhos.
 Inicie o servidor Uvicorn:
 
     ```bash
-    uvicorn main_api:app --reload
+    uvicorn scripts.main_api:app --reload
     ```
 
 Acesse a documentação interativa (Swagger) em: [127.0.0.1:8000/docs](http://127.0.0.1:8000/docs)
