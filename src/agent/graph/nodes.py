@@ -18,6 +18,15 @@ TOOLS = [
     buscar_trecho_codigo,
 ]
 
+def _accumulate_usage(existing: dict, response) -> dict:
+    new_usage = getattr(response, 'usage_metadata', None) or {}
+    return {
+        'input_tokens': existing.get('input_tokens', 0) + new_usage.get('input_tokens', 0),
+        'output_tokens': existing.get('output_tokens', 0) + new_usage.get('output_tokens', 0),
+        'total_tokens': existing.get('total_tokens', 0) + new_usage.get('total_tokens', 0),
+    }
+
+
 def build_agent_node(provider: str = 'groq'):
     """
     Retorna o nó do agente ReAct com as tools vinculadas.
@@ -30,20 +39,22 @@ def build_agent_node(provider: str = 'groq'):
     else:
         llm = editor.google_genai_model()
     llm_with_tools = llm.bind_tools(TOOLS)
-    
+
     def agent_node(state: State) -> State:
-        print("> Agent Node")    
+        print("> Agent Node")
         messages = state["messages"]
-        
+
         if state.get('iteration', 0) == 0:
             messages = [SystemMessage(content=SYSTEM_PROMPT)] + messages
-            
+
         response = llm_with_tools.invoke(messages)
         has_tool_calls = hasattr(response, 'tool_calls') and response.tool_calls
         content = (response.content or "") if hasattr(response, "content") else ""
         is_ready = content.strip() == "PRONTO_PARA_EDITAR"
 
-        if not has_tool_calls and not is_ready: 
+        token_usage = _accumulate_usage(state.get('token_usage', {}), response)
+
+        if not has_tool_calls and not is_ready:
             with trace_block(
                 "agent_protocol_violation",
                 provider=provider,
@@ -62,6 +73,7 @@ def build_agent_node(provider: str = 'groq'):
                 "messages": [response, correction],
                 "iteration": state.get("iteration", 0) + 1,
                 "agent_blocked": False,
+                "token_usage": token_usage,
             }
 
         return {
@@ -69,8 +81,9 @@ def build_agent_node(provider: str = 'groq'):
             "iteration": state.get('iteration', 0) + 1,
             "agent_blocked": False,
             "agent_errors": [],
+            "token_usage": token_usage,
         }
-    
+
     return agent_node
     
 
@@ -87,19 +100,27 @@ def build_code_editor_node(provider: str = 'groq') -> State:
     def code_editor_node(state: State) -> State:
         print("> Code Editor Node")
         context = _extrair_contexto_das_mensagens(state["messages"])
-        
+
+        review_errors = state.get("review_errors", [])
+        user_request = state["user_request"]
+        if review_errors:
+            feedback = "\n\nTENTATIVA ANTERIOR INVÁLIDA. Corrija os seguintes erros antes de gerar o JSON:\n" + "\n".join(f"- {e}" for e in review_errors)
+            user_request = user_request + feedback
+
         response = chain.invoke({
-            "user_request": state["user_request"],
+            "user_request": user_request,
             "rules_context": context.get("rules", state.get('rules_context', '')),
             "code_context": context.get("code", state.get('code_context', '')),
-        }) 
-        
+        })
+
         generated = response.content if hasattr(response, 'content') else str(response)
-        
+        token_usage = _accumulate_usage(state.get('token_usage', {}), response)
+
         return {
             'raw_output': generated,
             'generated_code': generated,
-            'messages': [AIMessage(content=f'Código gerado:{generated}\n')]
+            'messages': [AIMessage(content=f'Código gerado:{generated}\n')],
+            'token_usage': token_usage,
         }
         
     return code_editor_node

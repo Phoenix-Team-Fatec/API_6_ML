@@ -110,7 +110,8 @@ def ask(user_input: str):
                 "review_attempts": 0,
                 "agent_errors": [],
                 "review_errors": [],
-                "agent_blocked": False
+                "agent_blocked": False,
+                "token_usage": {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
             }
 
         response = graph(inputs)
@@ -120,7 +121,10 @@ def ask(user_input: str):
             raise HTTPException(status_code=422, detail={
                 "errors": response.get("review_errors", ["Sem output validado"])
             })
-        return validated.model_dump()
+        return {
+            **validated.model_dump(),
+            "token_usage": response.get("token_usage", {}),
+        }
     except Exception as e:
         traceback.print_exc()
         raise HTTPException(status_code=404, detail=str(e))

@@ -32,6 +32,8 @@ class State(TypedDict):
     
     #Output final em JSON
     validated_output: Optional[RespostaAgente]
-    
-    
+
+    # Uso acumulado de tokens ao longo de todas as chamadas ao LLM
+    token_usage: dict
+
 
