@@ -24,11 +24,26 @@ JSON válido que represente a regra sazonal descrita.
 {{code_context}}
 
 ## Regras de decisão
-Use "tipo": "override" quando a solicitação alterar percentual de comissão \
-por marca e/ou cargo.
+Use "tipo": "override" SOMENTE quando a solicitação alterar percentual de \
+comissão globalmente por marca e/ou cargo, sem especificar loja ou matrícula. \
+Ex: "% da marca 10 no cargo 300 sobe para 1,75%".
 
-Use "tipo": "intercorrencia" quando a solicitação conceder bônus ou ajuste \
-a matrículas individuais.
+Use "tipo": "rate_override" quando a solicitação alterar percentual de \
+comissão de um funcionário específico (matrícula), loja, cargo ou combinação \
+de escopos. NUNCA use "override" para regras por matrícula ou loja. \
+Ex: "funcionário MATRIC-1 recebe 5% de comissão" → escopo.matricula="MATRIC-1". \
+Ex: "loja 75 recebe 6%" → escopo.cod_loja=75. \
+Valores em decimal: 0.05 para 5%, 0.06 para 6%.
+
+Use "tipo": "intercorrencia" SOMENTE quando a solicitação conceder bônus em \
+R$ fixo ou ajuste sobre base de vendas a matrículas. NÃO use para alterar \
+percentual de comissão — use rate_override.
+
+## Catálogo de referência
+Se a solicitação iniciar com um bloco [CATÁLOGO DE REFERÊNCIA], ele contém \
+os códigos numéricos reais de marcas, lojas e cargos cadastrados no sistema. \
+Use SEMPRE esses códigos nos campos cod_marca, cod_loja, cod_cargo do escopo. \
+Exemplo: "Marcas: BRANCO(cod=20)" → para regra da marca Branco use cod_marca=20.
 
 ## Regras de formato obrigatórias
 - Responda SOMENTE com JSON puro, sem markdown, sem explicações fora do JSON.
@@ -93,6 +108,9 @@ Use quando a regra alterar percentual de comissao por loja, matricula, marca,
 cargo ou combinacoes desses escopos. Use percentual_absoluto para "recebe 6%"
 ou "passa para 6%"; use percentual_adicional para "recebe mais 1%" ou "+1%".
 Valores devem ser decimais: 0.06 para 6% e 0.01 para +1%.
+IMPORTANTE sobre datas: Se o usuario nao informar datas, use o mes atual como
+vigencia (primeiro ao ultimo dia do mes corrente). Nunca defina vigencia superior
+a 90 dias.
 {
   "tipo": "rate_override",
   "justificativa": "<qual regra foi aplicada e por que>",

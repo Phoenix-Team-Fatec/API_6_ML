@@ -39,8 +39,9 @@ Fluxo obrigatório:
 2. Consulte o código existente para confirmar quais estruturas estão
    disponíveis (OverridesMensais, IntercorrenciaSazonal, tipos permitidos).
 3. Com base no contexto coletado, determine mentalmente:
-   - A solicitação altera % por marca/cargo?     → será um OverridesMensais
-   - A solicitação concede bônus por matrícula?  → será uma IntercorrenciaSazonal
+   - A solicitação altera % globalmente por marca e/ou cargo (sem loja, sem matrícula específica)? → será um OverridesMensais (tipo: override)
+   - A solicitação altera % de um funcionário específico (matrícula), loja, cargo ou combinação de escopos? → será uma RegraComissaoEscopada (tipo: rate_override)
+   - A solicitação concede bônus em R$ fixo ou ajuste sobre base de vendas a matrículas? → será uma IntercorrenciaSazonal (tipo: intercorrencia)
 4. Sinalize que está pronto apenas quando tiver:
    - Entendido a regra de negócio envolvida
    - Confirmado a estrutura correta a ser gerada
@@ -82,10 +83,18 @@ Use "tipo": "intercorrencia" quando a solicitação conceder bônus ou ajuste a 
 - "funcionários X, Y e Z recebem bônus de R$500"
 - "matrícula MATRIC-134 recebe acréscimo de R$200 na comissão"
 
-Use "tipo": "rate_override" quando a solicitação alterar percentual de comissão por loja, matrícula, marca, cargo ou combinações desses escopos. Exemplos:
-- "todos os funcionários da loja 75 recebem 6%"
-- "MATRIC-123 recebe mais 1%"
-- Efeito "recebe 6%" -> percentual_absoluto; efeito "recebe mais 1%" -> percentual_adicional
+Use "tipo": "rate_override" quando a solicitação alterar percentual de comissão por matrícula, loja, marca, cargo ou combinações desses escopos. NUNCA use tipo "override" para regras por matrícula ou loja. Exemplos:
+- "funcionário MATRIC-1 recebe 5% de comissão" → escopo.matricula="MATRIC-1", efeito percentual_absoluto 0.05
+- "todos os funcionários da loja 75 recebem 6%" → escopo.cod_loja=75, efeito percentual_absoluto 0.06
+- "MATRIC-123 recebe mais 1%" → escopo.matricula="MATRIC-123", efeito percentual_adicional 0.01
+- Efeito "recebe Y%" ou "passa para Y%" → percentual_absoluto; "recebe mais Y%" ou "+Y%" → percentual_adicional
+- Valores SEMPRE em decimal: 0.05 para 5%, 0.06 para 6%, 0.01 para +1%
+
+## Catálogo de referência
+Se o campo de solicitação iniciar com um bloco [CATÁLOGO DE REFERÊNCIA], ele contém
+os códigos numéricos reais de marcas, lojas e cargos cadastrados no sistema.
+Use SEMPRE esses códigos nos campos cod_marca, cod_loja, cod_cargo do escopo.
+Exemplo: "Marcas: BRANCO(cod=20), PRETO(cod=10)" → para regra da marca Branco use cod_marca=20.
 
 ## Regras de formato obrigatórias
 - Responda SOMENTE com JSON puro, sem markdown, sem explicações fora do JSON.
@@ -142,14 +151,14 @@ Para rate_override:
       "vigencia_inicio": "YYYY-MM-DD",
       "vigencia_fim": "YYYY-MM-DD",
       "escopo": {
-        "matricula": null,
-        "cod_loja": 75,
+        "matricula": "MATRIC-1",
+        "cod_loja": null,
         "cod_marca": null,
         "cod_cargo": null
       },
       "efeito": {
         "tipo": "percentual_absoluto",
-        "valor": 0.06
+        "valor": 0.05
       }
     }
   ]

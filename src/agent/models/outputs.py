@@ -69,6 +69,30 @@ class OverridesMensais(BaseModel):
         return self
 
     @model_validator(mode="after")
+    def validar_formato_chaves(self) -> OverridesMensais:
+        for field_name, mapping in [
+            ("perc_override", self.perc_override),
+            ("perc_adicional", self.perc_adicional),
+        ]:
+            for key in mapping:
+                parts = key.split(",")
+                if len(parts) != 2:
+                    raise ValueError(
+                        f"{field_name}['{key}']: chave deve estar no formato "
+                        f"'cod_marca,cod_cargo' (ex: '10,300'). "
+                        f"Para regras por matrícula ou loja use tipo 'rate_override'."
+                    )
+                try:
+                    int(parts[0].strip())
+                    int(parts[1].strip())
+                except ValueError:
+                    raise ValueError(
+                        f"{field_name}['{key}']: ambas as partes devem ser inteiros, "
+                        f"ex: '10,300'."
+                    )
+        return self
+
+    @model_validator(mode="after")
     def normalizar_percentuais_decimais(self) -> OverridesMensais:
         self.perc_override = {
             key: value * 100 if 0 < value < 0.1 else value
